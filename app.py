@@ -162,22 +162,20 @@ if __name__ == '__main__':
 
     app = create_app() # Create the Flask app instance
 
+    # --- MODIFICATION FOR DEBUG MODE ---
+    # We will run with Flask's built-in server for development.
+    # The 'waitress-serve' command is for production.
+    
     print("\n" + "="*50)
     print("✅ SERVER READY - ACCESS URLS:")
-    # Use port 5001 to avoid conflict with Production Portal if run on same machine
     print(f"   Local:   http://localhost:5001")
     print(f"   Network: http://{local_ip}:5001")
+    print("\n" + "="*50)
+    print("⚠️ RUNNING IN DEVELOPMENT (DEBUG) MODE ⚠️")
+    print("   Do not use this for production.")
+    print("   Server will auto-reload on code changes.")
     print("="*50)
-    print("\nℹ️  Ensure firewall allows port 5001.")
-    print("   Press CTRL+C to stop the server.\n")
-
-    # Use Waitress for serving
-    try:
-        from waitress import serve
-        serve(app, host='0.0.0.0', port=5001)
-    except ImportError:
-         print("\n⚠️ Waitress not found. Falling back to Flask's development server.")
-         print("   Install waitress (`pip install waitress`) for a more suitable server.")
-         app.run(host='0.0.0.0', port=5001, debug=False) # debug=False is safer
-    except Exception as e:
-         print(f"❌ Failed to start server: {e}")
+    print("\n   Press CTRL+C to stop the server.\n")
+    
+    # Run with Flask's built-in debug server
+    app.run(host='0.0.0.0', port=5001, debug=True)

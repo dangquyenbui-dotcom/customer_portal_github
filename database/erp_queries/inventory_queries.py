@@ -70,3 +70,27 @@ class ERPInventoryQueries:
              return []
         print(f"ℹ️ [ERP Inventory] Found {len(results)} inventory records for customer: {erp_customer_name}")
         return results
+
+    def get_all_erp_customer_names(self):
+        """
+        Retrieves a distinct list of all ERP customer names (from dmpr1).
+        """
+        db = get_erp_db_connection()
+        if not db:
+            print("❌ [ERP Customer List] Failed to get ERP DB connection.")
+            return []
+
+        # New query to get all distinct customer names
+        sql = """
+            SELECT DISTINCT p1_name
+            FROM dmpr1
+            WHERE p1_name IS NOT NULL AND p1_name <> ''
+            ORDER BY p1_name;
+        """
+        results = db.execute_query(sql)
+        if results is None:
+             print("❌ [ERP Customer List] Query failed.")
+             return []
+        
+        # Extract just the names from the list of dicts
+        return [row['p1_name'] for row in results]

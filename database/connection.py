@@ -38,11 +38,14 @@ class DatabaseConnection:
                 f"Connection Timeout=30;"
             )
         else:
+            # --- FIX ---
+            # Added curly braces { } around Config.DB_PASSWORD
+            # to handle special characters like ';' in the password.
             base_string = (
                 f"SERVER={Config.DB_SERVER};"
                 f"DATABASE={Config.DB_NAME};"
                 f"UID={Config.DB_USERNAME};"
-                f"PWD={Config.DB_PASSWORD};"
+                f"PWD={{{Config.DB_PASSWORD}}};" # <--- THIS IS THE FIX
                 f"TrustServerCertificate=yes;"
                 f"Connection Timeout=30;"
             )

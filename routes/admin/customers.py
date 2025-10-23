@@ -5,6 +5,7 @@ Admin routes for managing customer accounts.
 from flask import Blueprint, render_template, redirect, url_for, session, request, flash, jsonify
 from auth import admin_required
 from database.customer_data import customer_db # Import the instance
+from database import get_erp_service # Import the ERP service
 from utils.validators import validate_email, validate_password
 from werkzeug.security import generate_password_hash # Needed for password updates
 
@@ -45,10 +46,21 @@ def manage_customers():
 
         if status_match and search_match:
             filtered_customers.append(cust)
+            
+    # --- NEW: Get ERP Customer List for Dropdown ---
+    erp_service = get_erp_service()
+    try:
+        erp_customer_names = erp_service.get_all_customer_names()
+    except Exception as e:
+        print(f"❌ Error fetching ERP customer names: {e}")
+        flash("Error fetching ERP customer list. Field will be a text input.", "error")
+        erp_customer_names = []
+    # --- End New Feature ---
 
     return render_template(
         'admin/customer_management.html',
         customers=filtered_customers,
+        erp_customer_names=erp_customer_names, # Pass the list to the template
         search_term=search_term,
         status_filter=status_filter
         )

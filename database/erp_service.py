@@ -20,6 +20,10 @@ class ErpService:
             return []
         return self.inventory_queries.get_inventory_by_customer(erp_customer_name)
 
+    def get_all_customer_names(self):
+        """Fetches a list of all distinct ERP customer names."""
+        return self.inventory_queries.get_all_erp_customer_names()
+
 # --- Singleton instance management ---
 _erp_service_instance = None
 

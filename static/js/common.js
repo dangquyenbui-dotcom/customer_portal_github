@@ -76,6 +76,8 @@ function resetForm(formId) {
     }
 }
 
+// NOTE: This function has a bug with FormData/checkboxes.
+// We are NOT using this for the Edit form anymore.
 function submitForm(formId, url, onSuccess, onError) {
     const form = document.getElementById(formId);
     if (!form) return;

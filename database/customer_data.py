@@ -18,47 +18,51 @@ class CustomerDataDB:
 
     def ensure_tables(self):
         """Ensure the Customers and PasswordResetTokens tables exist."""
-        with self.db.get_connection() as conn:
-            if not conn.check_table_exists('Customers'):
-                print("⏳ Creating Customers table...")
-                create_customers_query = """
-                    CREATE TABLE Customers (
-                        customer_id INT IDENTITY(1,1) PRIMARY KEY,
-                        first_name NVARCHAR(100) NOT NULL,
-                        last_name NVARCHAR(100) NOT NULL,
-                        email NVARCHAR(255) NOT NULL UNIQUE,
-                        password_hash NVARCHAR(255) NOT NULL,
-                        erp_customer_name NVARCHAR(255) NOT NULL,
-                        is_active BIT DEFAULT 1 NOT NULL,
-                        created_date DATETIME DEFAULT GETDATE() NOT NULL,
-                        last_login_date DATETIME NULL
-                    );
-                    CREATE INDEX IX_Customers_ErpName ON Customers(erp_customer_name);
-                    CREATE INDEX IX_Customers_Active ON Customers(is_active);
-                """
-                if conn.execute_query(create_customers_query):
-                    print("✅ Customers table created successfully.")
-                else:
-                    print("❌ Failed to create Customers table.")
+        # FIX: Removed 'with self.db.get_connection() as conn:' wrapper
+        # The 'self.db' object is the connection manager and has the methods directly.
+        if not self.db.check_table_exists('Customers'):
+            print("⏳ Creating Customers table...")
+            create_customers_query = """
+                CREATE TABLE Customers (
+                    customer_id INT IDENTITY(1,1) PRIMARY KEY,
+                    first_name NVARCHAR(100) NOT NULL,
+                    last_name NVARCHAR(100) NOT NULL,
+                    email NVARCHAR(255) NOT NULL UNIQUE,
+                    password_hash NVARCHAR(255) NOT NULL,
+                    erp_customer_name NVARCHAR(255) NOT NULL,
+                    is_active BIT DEFAULT 1 NOT NULL,
+                    created_date DATETIME DEFAULT GETDATE() NOT NULL,
+                    last_login_date DATETIME NULL
+                );
+                CREATE INDEX IX_Customers_ErpName ON Customers(erp_customer_name);
+                CREATE INDEX IX_Customers_Active ON Customers(is_active);
+            """
+            # FIX: Changed 'conn.execute_query' to 'self.db.execute_query'
+            if self.db.execute_query(create_customers_query):
+                print("✅ Customers table created successfully.")
+            else:
+                print("❌ Failed to create Customers table.")
 
-            if not conn.check_table_exists('PasswordResetTokens'):
-                print("⏳ Creating PasswordResetTokens table...")
-                create_tokens_query = """
-                    CREATE TABLE PasswordResetTokens (
-                        token_id INT IDENTITY(1,1) PRIMARY KEY,
-                        customer_id INT NOT NULL,
-                        token_hash NVARCHAR(255) NOT NULL UNIQUE,
-                        expiry_date DATETIME NOT NULL,
-                        is_used BIT DEFAULT 0 NOT NULL,
-                        CONSTRAINT FK_Token_Customer FOREIGN KEY (customer_id) REFERENCES Customers(customer_id)
-                    );
-                     CREATE INDEX IX_Tokens_Expiry ON PasswordResetTokens(expiry_date);
-                     CREATE INDEX IX_Tokens_Used ON PasswordResetTokens(is_used);
-                """
-                if conn.execute_query(create_tokens_query):
-                    print("✅ PasswordResetTokens table created successfully.")
-                else:
-                     print("❌ Failed to create PasswordResetTokens table.")
+        # FIX: Removed 'with self.db.get_connection() as conn:' wrapper
+        if not self.db.check_table_exists('PasswordResetTokens'):
+            print("⏳ Creating PasswordResetTokens table...")
+            create_tokens_query = """
+                CREATE TABLE PasswordResetTokens (
+                    token_id INT IDENTITY(1,1) PRIMARY KEY,
+                    customer_id INT NOT NULL,
+                    token_hash NVARCHAR(255) NOT NULL UNIQUE,
+                    expiry_date DATETIME NOT NULL,
+                    is_used BIT DEFAULT 0 NOT NULL,
+                    CONSTRAINT FK_Token_Customer FOREIGN KEY (customer_id) REFERENCES Customers(customer_id)
+                );
+                 CREATE INDEX IX_Tokens_Expiry ON PasswordResetTokens(expiry_date);
+                 CREATE INDEX IX_Tokens_Used ON PasswordResetTokens(is_used);
+            """
+            # FIX: Changed 'conn.execute_query' to 'self.db.execute_query'
+            if self.db.execute_query(create_tokens_query):
+                print("✅ PasswordResetTokens table created successfully.")
+            else:
+                 print("❌ Failed to create PasswordResetTokens table.")
 
     def create_customer(self, first_name, last_name, email, password, erp_customer_name):
         """Creates a new customer record."""

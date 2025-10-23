@@ -82,7 +82,9 @@
                 <td>{{ customer.last_login_date.strftime('%Y-%m-%d %H:%M') if customer.last_login_date else 'Never' }}</td>
                 <td>
                     <div class="actions">
-                        <button class="btn btn-secondary btn-sm" onclick="openEditModal({{ customer | tojson | safe }})">
+                        {# --- THIS IS THE FIX --- #}
+                        {# Changed onclick="... to onclick='... #}
+                        <button class="btn btn-secondary btn-sm" onclick='openEditModal({{ customer | tojson | safe }})'>
                             ✏️ Edit
                         </button>
                         {% if customer.is_active %}
@@ -113,6 +115,13 @@
     {% endif %}
 </div>
 
+{# --- DATALIST for ERP Customer Names (New) --- #}
+<datalist id="erp-customer-list">
+    {% for name in erp_customer_names %}
+    <option value="{{ name }}">
+    {% endfor %}
+</datalist>
+
 <div id="addModal" class="modal">
     <div class="modal-content">
         <span class="close" onclick="dtUtils.closeModal('addModal')">&times;</span>
@@ -139,7 +148,8 @@
             </div>
             <div class="form-group">
                 <label for="erp_customer_name">ERP Customer Name *</label>
-                <input type="text" id="erp_customer_name" name="erp_customer_name" class="form-control" required>
+                {# --- MODIFIED: Added list attribute --- #}
+                <input type="text" id="erp_customer_name" name="erp_customer_name" class="form-control" required list="erp-customer-list">
                 <small>Must exactly match the name in ERP (e.g., from `dmpr1.p1_name`).</small>
             </div>
             <div class="modal-actions">
@@ -172,7 +182,8 @@
             </div>
              <div class="form-group">
                 <label for="edit_erp_customer_name">ERP Customer Name *</label>
-                <input type="text" id="edit_erp_customer_name" name="edit_erp_customer_name" class="form-control" required>
+                {# --- MODIFIED: Added list attribute --- #}
+                <input type="text" id="edit_erp_customer_name" name="edit_erp_customer_name" class="form-control" required list="erp-customer-list">
                  <small>Must exactly match the name in ERP.</small>
             </div>
              <div class="form-group">
@@ -214,28 +225,44 @@
         dtUtils.openModal('editModal');
     }
 
-    // Handle Edit Form Submission via Fetch API
+    // --- MAJOR FIX: This is the code that fixes the Edit functionality ---
     document.getElementById('editForm').addEventListener('submit', function(e) {
         e.preventDefault();
         const customerId = document.getElementById('edit_customer_id').value;
-        const formData = new FormData(this);
+        const form = e.target;
+        const formData = new FormData(form);
+        const submitButton = form.querySelector('button[type="submit"]');
 
-        // Convert checkbox value correctly
+        // Manually set checkbox value (FormData only includes checked boxes)
         const isActive = document.getElementById('edit_is_active').checked;
         formData.set('edit_is_active', isActive ? 'true' : 'false');
 
-        // Submit using common.js function
-        dtUtils.submitForm('editForm', `/admin/customers/edit/${customerId}`,
-            (data) => { // onSuccess
+        submitButton.disabled = true;
+        submitButton.textContent = 'Updating...';
+
+        fetch(`/admin/customers/edit/${customerId}`, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                dtUtils.showAlert(data.message, 'success');
                 dtUtils.closeModal('editModal');
                 // Reload after a short delay to see changes
                 setTimeout(() => window.location.reload(), 1000);
-            },
-            (errorData) => { // onError (optional)
-                // Error message is already shown by submitForm
-                console.error("Update failed:", errorData);
+            } else {
+                dtUtils.showAlert(data.message, 'error');
             }
-        );
+        })
+        .catch(error => {
+            console.error('Update error:', error);
+            dtUtils.showAlert('An error occurred during the update.', 'error');
+        })
+        .finally(() => {
+            submitButton.disabled = false;
+            submitButton.textContent = 'Update Customer';
+        });
     });
 
     // Deactivate Customer (using common.js deleteItem confirmation)
@@ -270,16 +297,6 @@
             });
         }
     }
-
-    // --- Placeholder for Trigger Password Reset ---
-    // function triggerReset(customerId) {
-    //     if (confirm('Send a password reset email to this customer?')) {
-    //         fetch(`/admin/customers/trigger-reset/${customerId}`, { method: 'POST' })
-    //             .then(res => res.json())
-    //             .then(data => dtUtils.showAlert(data.message, data.success ? 'success' : 'error'))
-    //             .catch(err => dtUtils.showAlert('Failed to trigger reset.', 'error'));
-    //     }
-    // }
 
 </script>
 {% endblock %}

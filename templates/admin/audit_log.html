@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block title %}Audit Log - Admin{% endblock %}
+
+{% block navbar_title %}📜 Audit Log{% endblock %}
+
+{% block nav_links %}
+    <span style="color: white; margin-right: 15px;">Admin: {{ session.admin.username }}</span>
+    <a href="{{ url_for('admin_panel.panel') }}">Admin Dashboard</a>
+    <a href="{{ url_for('main.admin_logout') }}">Admin Logout</a>
+{% endblock %}
+
+{% block styles %}
+{# admin.css and base.css already included #}
+<style>
+    .filter-bar {
+        background: var(--bg-secondary);
+        padding: 15px 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        box-shadow: var(--shadow-sm);
+        border: 1px solid var(--border-primary);
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 20px;
+    }
+    .filter-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .filter-group label {
+        font-weight: 500;
+        color: var(--text-secondary);
+        white-space: nowrap;
+    }
+    .filter-select, .search-input { /* Combined styles */
+        min-width: 160px;
+        padding: 8px 12px;
+        border: 2px solid var(--input-border);
+        border-radius: 6px;
+        background: var(--input-bg);
+        color: var(--text-primary);
+        font-size: 14px;
+    }
+    .details-cell {
+        max-width: 400px; /* Limit width */
+        white-space: pre-wrap; /* Allow wrapping */
+        word-break: break-word; /* Break long words */
+        font-family: monospace;
+        font-size: 12px;
+        background-color: var(--bg-tertiary);
+        padding: 8px !important; /* Override default table padding */
+        border-radius: 4px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="header-card">
+    <h1>Audit Log</h1>
+    <p>View records of administrative actions performed on customer accounts.</p>
+</div>
+
+<div id="alerts"></div>
+
+{# --- Filter Bar --- #}
+<div class="filter-bar">
+    <form method="GET" action="{{ url_for('admin_audit.view_audit_log') }}" id="filterForm" style="display: flex; flex-wrap: wrap; gap: 15px; align-items: center; width: 100%;">
+        <div class="filter-group">
+            <label for="adminFilter">Admin:</label>
+            <select name="admin_username" id="adminFilter" class="filter-select">
+                <option value="">All Admins</option>
+                {% for admin in distinct_admins %}
+                <option value="{{ admin }}" {% if admin == current_admin %}selected{% endif %}>{{ admin }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-group">
+            <label for="actionFilter">Action:</label>
+             <select name="action_type" id="actionFilter" class="filter-select">
+                <option value="">All Actions</option>
+                 {% for action in distinct_actions %}
+                <option value="{{ action }}" {% if action == current_action %}selected{% endif %}>{{ action }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-group" style="flex-grow: 1;">
+            <label for="customerSearch">Customer:</label>
+            <input type="text" name="customer_search" id="customerSearch" class="search-input" placeholder="Search ID or Email..." value="{{ current_customer_search or '' }}">
+        </div>
+        <button type="submit" class="btn btn-secondary">Filter</button>
+        <a href="{{ url_for('admin_audit.view_audit_log') }}" class="btn btn-secondary">Reset</a>
+     </form>
+</div>
+
+
+<div class="data-table">
+    {% if logs %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>Admin</th>
+                <th>Action</th>
+                <th>Target Customer</th>
+                <th>Details</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr>
+                <td title="{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3] }}">
+                    {{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}
+                </td>
+                <td>{{ log.admin_username }}</td>
+                <td><span class="action-badge action-{{ log.action_type.lower().replace('_', '-') }}">{{ log.action_type }}</span></td>
+                <td>
+                    {% if log.target_customer_id or log.target_customer_email %}
+                        ID: {{ log.target_customer_id or 'N/A' }} <br>
+                        {{ log.target_customer_email or '' }}
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </td>
+                <td class="details-cell">
+                    {{ log.details or '' }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-state-icon">📜</div>
+        <h3>No Audit Logs Found</h3>
+        <p>No logs match the current filter criteria.</p>
+    </div>
+    {% endif %}
+</div>
+
+{# Basic Pagination Placeholder - Add more robust pagination later if needed #}
+<div style="text-align: center; margin-top: 20px;">
+    {% if page > 1 %}
+        <a href="{{ url_for('admin_audit.view_audit_log', page=page-1, admin_username=current_admin, action_type=current_action, customer_search=current_customer_search) }}" class="btn btn-secondary btn-sm">&lt; Previous</a>
+    {% endif %}
+    <span style="margin: 0 15px; color: var(--text-tertiary);">Page {{ page }}</span>
+    {% if logs | length == limit %}
+        <a href="{{ url_for('admin_audit.view_audit_log', page=page+1, admin_username=current_admin, action_type=current_action, customer_search=current_customer_search) }}" class="btn btn-secondary btn-sm">Next &gt;</a>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Add specific JS for this page if needed later (e.g., date pickers)
+</script>
+{% endblock %}

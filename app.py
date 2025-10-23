@@ -16,18 +16,17 @@ def create_app():
     # --- Configuration ---
     app.secret_key = Config.SECRET_KEY
     app.permanent_session_lifetime = Config.PERMANENT_SESSION_LIFETIME
-    app.config['SESSION_COOKIE_SECURE'] = False # Set to True if using HTTPS
+    # Set to True if using HTTPS, False for HTTP development
+    app.config['SESSION_COOKIE_SECURE'] = os.getenv('FLASK_ENV') == 'production' 
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax' # Or 'Strict'
 
-    # Configure static files path
     app.static_folder = 'static'
     app.static_url_path = '/static'
 
-    # --- Jinja Globals ---
-    # Make config and session available globally in templates
     @app.context_processor
     def inject_global_vars():
+        # Make config and session available globally in templates
         return dict(
             config=Config,
             session=session
@@ -39,7 +38,6 @@ def create_app():
     # --- Initialize Database Connections (Test on startup) ---
     initialize_database_connections()
 
-    # --- Request Teardown ---
     @app.teardown_appcontext
     def teardown_db(exception=None):
         # Optional: Close ERP connection if needed (depends on pooling/driver behavior)
@@ -59,6 +57,8 @@ def register_blueprints(app):
         # --- Import Admin Blueprints ---
         from routes.admin.panel import admin_panel_bp
         from routes.admin.customers import admin_customers_bp
+        # === NEW IMPORT ===
+        from routes.admin.audit import admin_audit_bp
 
         app.register_blueprint(main_bp)
         # Register inventory under '/inventory' prefix
@@ -67,6 +67,8 @@ def register_blueprints(app):
         # Register admin blueprints under /admin prefix
         app.register_blueprint(admin_panel_bp, url_prefix='/admin')
         app.register_blueprint(admin_customers_bp, url_prefix='/admin')
+        # === NEW REGISTRATION ===
+        app.register_blueprint(admin_audit_bp, url_prefix='/admin')
 
         print("✅ Blueprints registered.")
     except ImportError as e:
@@ -86,10 +88,10 @@ def initialize_database_connections():
         local_db = get_db()
         if local_db.test_connection():
             print("✅ Local DB (CustomerPortalDB): Connected")
-            # Ensure tables are created/checked after connection is confirmed
-            # Importing customer_db triggers ensure_tables via its __init__
-            from database import customer_db
-            print("✅ Local DB Tables Checked/Created.")
+            # --- MODIFICATION: Import audit_db to trigger ensure_table ---
+            # Importing these instances triggers their __init__ which calls ensure_tables
+            from database import customer_db, audit_db
+            print("✅ Local DB Tables (Customers, AuditLog) Checked/Created.")
         else:
             print("❌ Local DB (CustomerPortalDB): Connection FAILED")
             all_ok = False
@@ -105,7 +107,7 @@ def initialize_database_connections():
         if erp_db and erp_db.connection:
             print("✅ ERP DB (Read-Only): Connected")
         elif erp_db and erp_db._connection_string:
-             print("✅ ERP DB (Read-Only): Connection String Ready (will connect on first query)")
+             print("✅ ERP DB (Read-Only): Connection String Ready")
         else:
              print("❌ ERP DB (Read-Only): Connection FAILED during setup")
              all_ok = False # Treat as failure if setup failed
@@ -138,13 +140,14 @@ if __name__ == '__main__':
     print("🚀 LAUNCHING CUSTOMER PORTAL")
     print("="*50)
 
-    # Ensure static directories exist (optional, good practice)
+    # Ensure static/template directories exist (optional, good practice)
     project_root = os.path.dirname(__file__)
     os.makedirs(os.path.join(project_root, 'static', 'css'), exist_ok=True)
     os.makedirs(os.path.join(project_root, 'static', 'js'), exist_ok=True)
     os.makedirs(os.path.join(project_root, 'static', 'img'), exist_ok=True)
     os.makedirs(os.path.join(project_root, 'templates', 'admin'), exist_ok=True)
-    os.makedirs(os.path.join(project_root, 'templates', 'components'), exist_ok=True)
+    # === NEW: Ensure email template directory exists ===
+    os.makedirs(os.path.join(project_root, 'templates', 'email'), exist_ok=True)
 
     local_ip = get_local_ip()
 
@@ -156,26 +159,33 @@ if __name__ == '__main__':
     print("\n--- Configuration ---")
     print(f"Database:     {Config.DB_SERVER}/{Config.DB_NAME}")
     print(f"ERP Database: {Config.ERP_DB_SERVER}/{Config.ERP_DB_NAME}")
+    print(f"SMTP Server:  {Config.SMTP_SERVER}:{Config.SMTP_PORT}") # Log SMTP server
     print(f"Secret Key:   {'Set' if Config.SECRET_KEY != 'dev-key-change-in-production' else '!!! NOT SET (Using Default) !!!'}")
     print(f"Admin User:   {Config.ADMIN_USERNAME}")
     print("-" * 20)
 
     app = create_app() # Create the Flask app instance
 
-    # --- MODIFICATION FOR DEBUG MODE ---
-    # We will run with Flask's built-in server for development.
-    # The 'waitress-serve' command is for production.
-    
     print("\n" + "="*50)
     print("✅ SERVER READY - ACCESS URLS:")
     print(f"   Local:   http://localhost:5001")
     print(f"   Network: http://{local_ip}:5001")
     print("\n" + "="*50)
-    print("⚠️ RUNNING IN DEVELOPMENT (DEBUG) MODE ⚠️")
-    print("   Do not use this for production.")
-    print("   Server will auto-reload on code changes.")
+    # Determine mode based on FLASK_ENV or DEBUG environment variable
+    debug_mode = os.getenv('FLASK_ENV') == 'development' or os.getenv('DEBUG', 'False').lower() in ('true', '1', 't')
+    if debug_mode:
+        print("⚠️ RUNNING IN DEVELOPMENT (DEBUG) MODE ⚠️")
+        print("   Do not use this for production.")
+        print("   Server will auto-reload on code changes.")
+    else:
+        print("🚀 RUNNING IN PRODUCTION MODE")
     print("="*50)
     print("\n   Press CTRL+C to stop the server.\n")
-    
-    # Run with Flask's built-in debug server
-    app.run(host='0.0.0.0', port=5001, debug=True)
+
+    # Run with Flask's built-in debug server if in debug mode
+    app.run(host='0.0.0.0', port=5001, debug=debug_mode)
+
+    # If not in debug mode, you would typically use Waitress like this:
+    # from waitress import serve
+    # serve(app, host='0.0.0.0', port=5001)
+

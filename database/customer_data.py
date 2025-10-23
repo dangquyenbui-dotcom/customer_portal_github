@@ -16,10 +16,28 @@ class CustomerDataDB:
         self.db = get_db()
         self.ensure_tables()
 
+    def _add_column_if_not_exists(self, table_name, column_name, column_def):
+        """Utility to add a column if it doesn't exist."""
+        try:
+            query = """
+                IF NOT EXISTS (
+                    SELECT * FROM INFORMATION_SCHEMA.COLUMNS
+                    WHERE TABLE_NAME = ? AND COLUMN_NAME = ?
+                )
+                BEGIN
+                    ALTER TABLE %s ADD %s %s;
+                END
+            """ % (table_name, column_name, column_def) # Use % for dynamic table/col names
+            
+            self.db.execute_query(query, (table_name, column_name))
+            print(f"✅ [DB] Checked/Added column '{column_name}' to '{table_name}'.")
+            return True
+        except Exception as e:
+            print(f"❌ [DB] Error adding column '{column_name}': {e}")
+            return False
+
     def ensure_tables(self):
         """Ensure the Customers and PasswordResetTokens tables exist."""
-        # FIX: Removed 'with self.db.get_connection() as conn:' wrapper
-        # The 'self.db' object is the connection manager and has the methods directly.
         if not self.db.check_table_exists('Customers'):
             print("⏳ Creating Customers table...")
             create_customers_query = """
@@ -29,21 +47,29 @@ class CustomerDataDB:
                     last_name NVARCHAR(100) NOT NULL,
                     email NVARCHAR(255) NOT NULL UNIQUE,
                     password_hash NVARCHAR(255) NOT NULL,
-                    erp_customer_name NVARCHAR(255) NOT NULL,
+                    erp_customer_name NVARCHAR(4000) NOT NULL,
                     is_active BIT DEFAULT 1 NOT NULL,
                     created_date DATETIME DEFAULT GETDATE() NOT NULL,
-                    last_login_date DATETIME NULL
+                    last_login_date DATETIME NULL,
+                    
+                    -- === NEW COLUMN ===
+                    must_reset_password BIT DEFAULT 0 NOT NULL
                 );
                 CREATE INDEX IX_Customers_ErpName ON Customers(erp_customer_name);
                 CREATE INDEX IX_Customers_Active ON Customers(is_active);
             """
-            # FIX: Changed 'conn.execute_query' to 'self.db.execute_query'
             if self.db.execute_query(create_customers_query):
                 print("✅ Customers table created successfully.")
             else:
                 print("❌ Failed to create Customers table.")
+        else:
+            # === NEW: Check and add the column if table exists ===
+            self._add_column_if_not_exists(
+                'Customers', 
+                'must_reset_password', 
+                'BIT DEFAULT 0 NOT NULL'
+            )
 
-        # FIX: Removed 'with self.db.get_connection() as conn:' wrapper
         if not self.db.check_table_exists('PasswordResetTokens'):
             print("⏳ Creating PasswordResetTokens table...")
             create_tokens_query = """
@@ -58,14 +84,16 @@ class CustomerDataDB:
                  CREATE INDEX IX_Tokens_Expiry ON PasswordResetTokens(expiry_date);
                  CREATE INDEX IX_Tokens_Used ON PasswordResetTokens(is_used);
             """
-            # FIX: Changed 'conn.execute_query' to 'self.db.execute_query'
             if self.db.execute_query(create_tokens_query):
                 print("✅ PasswordResetTokens table created successfully.")
             else:
                  print("❌ Failed to create PasswordResetTokens table.")
 
     def create_customer(self, first_name, last_name, email, password, erp_customer_name):
-        """Creates a new customer record."""
+        """
+        Creates a new customer record.
+        erp_customer_name is now expected to be a '|' delimited string or 'All'.
+        """
         email = email.lower().strip()
         erp_customer_name = erp_customer_name.strip()
         if not all([first_name, last_name, email, password, erp_customer_name]):
@@ -76,8 +104,11 @@ class CustomerDataDB:
 
         password_hash = generate_password_hash(password)
         query = """
-            INSERT INTO Customers (first_name, last_name, email, password_hash, erp_customer_name, is_active)
-            VALUES (?, ?, ?, ?, ?, 1)
+            INSERT INTO Customers (
+                first_name, last_name, email, password_hash, erp_customer_name, 
+                is_active, must_reset_password
+            )
+            VALUES (?, ?, ?, ?, ?, 1, 1) -- === MODIFICATION: Force reset on create ===
         """
         params = (first_name, last_name, email, password_hash, erp_customer_name)
         success = self.db.execute_query(query, params)
@@ -111,14 +142,21 @@ class CustomerDataDB:
 
     def get_all_customers(self, include_inactive=False):
          """Gets a list of all customers."""
-         query = "SELECT customer_id, first_name, last_name, email, erp_customer_name, is_active, created_date, last_login_date FROM Customers"
+         query = """
+            SELECT customer_id, first_name, last_name, email, erp_customer_name, 
+                   is_active, created_date, last_login_date, must_reset_password 
+            FROM Customers
+         """
          if not include_inactive:
              query += " WHERE is_active = 1"
          query += " ORDER BY last_name, first_name"
          return self.db.execute_query(query)
 
     def update_customer(self, customer_id, first_name, last_name, email, erp_customer_name, is_active):
-         """Updates customer details."""
+         """
+         Updates customer details.
+         erp_customer_name is now expected to be a '|' delimited string or 'All'.
+         """
          email = email.lower().strip()
          erp_customer_name = erp_customer_name.strip()
 
@@ -143,7 +181,37 @@ class CustomerDataDB:
         action = "activated" if is_active else "deactivated"
         return success, f"Customer {action} successfully." if success else f"Failed to {action} customer."
 
-    # --- Password Reset Methods ---
+    # --- NEW: Admin Password Set Function ---
+    def admin_set_password(self, customer_id, new_password):
+        """
+        Sets a new password for the customer and flags their
+        account to require a password reset on next login.
+        """
+        new_password_hash = generate_password_hash(new_password)
+        query = """
+            UPDATE Customers 
+            SET password_hash = ?, must_reset_password = 1 
+            WHERE customer_id = ?
+        """
+        success = self.db.execute_query(query, (new_password_hash, customer_id))
+        return success
+
+    # --- MODIFIED: User's Password Reset Function ---
+    def reset_password(self, customer_id, new_password):
+        """
+        Resets the customer's password (by the user) and clears the
+        'must_reset_password' flag.
+        """
+        new_password_hash = generate_password_hash(new_password)
+        query = """
+            UPDATE Customers 
+            SET password_hash = ?, must_reset_password = 0 
+            WHERE customer_id = ?
+        """
+        success = self.db.execute_query(query, (new_password_hash, customer_id))
+        return success
+
+    # --- Password Reset Tokens (Future Use) ---
 
     def create_password_reset_token(self, customer_id):
         """Creates a password reset token."""
@@ -171,13 +239,6 @@ class CustomerDataDB:
                  return record['customer_id'] # Valid token found
          return None
 
-    def reset_password(self, customer_id, new_password):
-        """Resets the customer's password."""
-        new_password_hash = generate_password_hash(new_password)
-        query = "UPDATE Customers SET password_hash = ? WHERE customer_id = ?"
-        success = self.db.execute_query(query, (new_password_hash, customer_id))
-        return success
-
     def mark_token_used(self, token):
         """Marks a password reset token as used."""
         query = """
@@ -193,6 +254,10 @@ class CustomerDataDB:
              FROM PasswordResetTokens
              WHERE expiry_date > GETUTCDATE() AND is_used = 0
          """
+        
+        # --- THIS IS THE FIX ---
+        # The following lines were incorrectly indented.
+        # They have been moved back one level.
         tokens = self.db.execute_query(find_query)
         target_hash = None
         for record in tokens or []:
@@ -203,6 +268,8 @@ class CustomerDataDB:
         if target_hash:
              mark_query = "UPDATE PasswordResetTokens SET is_used = 1 WHERE token_hash = ?"
              self.db.execute_query(mark_query, (target_hash,))
+        # --- END FIX ---
 
 # Singleton instance
 customer_db = CustomerDataDB()
+

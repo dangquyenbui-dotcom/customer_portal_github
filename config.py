@@ -35,16 +35,18 @@ class Config:
     ERP_DB_DRIVER = os.getenv('ERP_DB_DRIVER', 'ODBC Driver 17 for SQL Server')
     ERP_DB_TIMEOUT = int(os.getenv('ERP_DB_TIMEOUT', '30'))
 
-    # Email settings (Optional - For Password Reset)
+    # Email settings are now required
     SMTP_SERVER = os.getenv('SMTP_SERVER')
     SMTP_PORT = int(os.getenv('SMTP_PORT', '587'))
     SMTP_USE_TLS = os.getenv('SMTP_USE_TLS', 'True').lower() == 'true'
     SMTP_USERNAME = os.getenv('SMTP_USERNAME')
     SMTP_PASSWORD = os.getenv('SMTP_PASSWORD')
     EMAIL_FROM = os.getenv('EMAIL_FROM')
+    # === NEW: Read BCC Address ===
+    EMAIL_BCC = os.getenv('EMAIL_BCC') # Read the new variable (can be None)
 
-    ADMIN_USERNAME = os.getenv('ADMIN_USERNAME', 'cp_admin') # Simple admin user for now
-    ADMIN_PASSWORD_HASH = os.getenv('ADMIN_PASSWORD_HASH') # Store hash in .env
+    ADMIN_USERNAME = os.getenv('ADMIN_USERNAME', 'cp_admin')
+    ADMIN_PASSWORD_HASH = os.getenv('ADMIN_PASSWORD_HASH')
 
 
     @classmethod
@@ -63,6 +65,15 @@ class Config:
         if not cls.ERP_DB_PASSWORD: errors.append("ERP_DB_PASSWORD is required")
         if not cls.ADMIN_PASSWORD_HASH: errors.append("ADMIN_PASSWORD_HASH is required in .env for admin login")
 
+        # Validate Email Settings
+        if not cls.SMTP_SERVER: errors.append("SMTP_SERVER is required for password resets")
+        if not cls.SMTP_USERNAME: errors.append("SMTP_USERNAME is required for password resets")
+        if not cls.SMTP_PASSWORD: errors.append("SMTP_PASSWORD is required for password resets")
+        if not cls.EMAIL_FROM: errors.append("EMAIL_FROM is required for password resets")
+        # === NEW: Optional check for BCC format if provided ===
+        if cls.EMAIL_BCC and '@' not in cls.EMAIL_BCC: # Basic format check
+             errors.append("EMAIL_BCC, if provided, must be a valid email address.")
+
         if errors:
             print("❌ Configuration errors:")
             for error in errors: print(f"  - {error}")
@@ -72,3 +83,4 @@ class Config:
 
 # Ensure validation is called on import
 Config.validate()
+

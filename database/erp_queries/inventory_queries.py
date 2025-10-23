@@ -9,16 +9,19 @@ class ERPInventoryQueries:
 
     def get_inventory_by_customer(self, erp_customer_name):
         """
-        Retrieves inventory details filtered by the ERP customer name.
-        Excludes quarantine, job, and staging locations.
+        Retrieves inventory details.
+        If erp_customer_name is 'All', fetches for all customers.
+        If erp_customer_name is a '|' delimited string, fetches for that list.
         """
         db = get_erp_db_connection()
         if not db:
             print("❌ [ERP Inventory] Failed to get ERP DB connection.")
             return []
 
-        # The main SQL query provided by the user
-        sql = """
+        # === MODIFICATION: Dynamic SQL Query Building ===
+        
+        # The main SQL query provided by the user, without the customer filter
+        sql_base = """
             SELECT
                 ISNULL(dmpr1.p1_name, '') AS Customer,
                 dmprod.pr_codenum AS Part,
@@ -60,15 +63,47 @@ class ERPInventoryQueries:
             INNER JOIN dmloc ON dtfifo.fi_loid = dmloc.lo_id
             WHERE dtfifo.fi_balance > 0
                 AND dtfifo.fi_type NOT IN ('quarantine', 'job', 'staging')
-                AND dmpr1.p1_name = ? -- Filter by the specific customer name
-            ORDER BY dmprod.pr_codenum, dtfifo.fi_userlot; -- Added sorting
         """
-        params = [erp_customer_name]
+        
+        params = []
+        sql_filter = ""
+        
+        if not erp_customer_name:
+             print("❌ [ERP Inventory] Query called with no customer name.")
+             return []
+        
+        if erp_customer_name == "All":
+            # No additional filter, but log it
+            print(f"ℹ️ [ERP Inventory] Fetching ALL inventory records for 'All' account.")
+            # We add p1_name to the sort order for 'All' accounts
+            sql_sort = " ORDER BY dmpr1.p1_name, dmprod.pr_codenum, dtfifo.fi_userlot;"
+        
+        elif "|" in erp_customer_name:
+            # Multiple customers
+            customer_list = erp_customer_name.split('|')
+            placeholders = ", ".join("?" for _ in customer_list)
+            sql_filter = f" AND dmpr1.p1_name IN ({placeholders})"
+            params.extend(customer_list)
+            print(f"ℹ️ [ERP Inventory] Fetching inventory for {len(customer_list)} customers.")
+            # We add p1_name to the sort order for multi-customer accounts
+            sql_sort = " ORDER BY dmpr1.p1_name, dmprod.pr_codenum, dtfifo.fi_userlot;"
+        
+        else:
+            # Single customer (legacy or just one selected)
+            sql_filter = " AND dmpr1.p1_name = ?"
+            params.append(erp_customer_name)
+            print(f"ℹ️ [ERP Inventory] Fetching inventory for single customer: {erp_customer_name}")
+            sql_sort = " ORDER BY dmprod.pr_codenum, dtfifo.fi_userlot;" # Original sort
+
+        # Combine the query
+        sql = sql_base + sql_filter + sql_sort
+        # === END MODIFICATION ===
+
         results = db.execute_query(sql, params)
         if results is None: # Handle query execution failure
-             print(f"❌ [ERP Inventory] Query failed for customer: {erp_customer_name}")
+             print(f"❌ [ERP Inventory] Query failed for: {erp_customer_name}")
              return []
-        print(f"ℹ️ [ERP Inventory] Found {len(results)} inventory records for customer: {erp_customer_name}")
+        print(f"ℹ️ [ERP Inventory] Found {len(results)} inventory records.")
         return results
 
     def get_all_erp_customer_names(self):

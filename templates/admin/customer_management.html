@@ -13,12 +13,72 @@
 {% block styles %}
 {# admin.css is already included in base.html #}
 <style>
-    .actions-bar { margin-bottom: 20px; } /* Ensure spacing */
-    .search-bar { position: relative; margin-bottom: 15px; }
-    .search-input { width: 100%; padding: 10px 15px 10px 40px; }
-    .search-icon { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: var(--text-tertiary);}
+    .actions-bar { margin-bottom: 20px; }
+    
+    .filter-section { 
+        flex-grow: 1; 
+    }
+    #filterForm {
+        width: 100%; 
+    }
+    .search-bar { 
+        position: relative; 
+        flex-grow: 1; 
+        margin-bottom: 0; 
+    }
+    input.search-input { 
+        width: 100%; 
+        padding: 10px 15px 10px 40px; 
+    }
+    .search-icon { 
+        position: absolute; 
+        left: 15px; 
+        top: 50%; 
+        transform: translateY(-50%); 
+        color: var(--text-tertiary);
+        z-index: 1;
+    }
+    
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
     .checkbox-group label { margin-left: 5px; }
+    
+    .checkbox-container {
+        max-height: 200px;
+        overflow-y: auto;
+        border: 2px solid var(--input-border);
+        border-radius: 8px;
+        padding: 10px;
+        background: var(--input-bg);
+    }
+    .checkbox-container label {
+        display: block; 
+        margin-bottom: 5px;
+        font-weight: normal; 
+        padding: 4px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    .checkbox-container label input {
+        margin-right: 8px;
+        transform: translateY(1px);
+    }
+    .checkbox-container label:hover {
+        background-color: var(--bg-hover);
+    }
+    .checkbox-container hr {
+        border: none;
+        border-top: 1px solid var(--border-primary);
+        margin: 8px 0;
+    }
+    
+    /* === NEW: Style for reset password button === */
+    .btn-reset-pw {
+        background: var(--btn-info-bg);
+        color: var(--btn-info-text);
+    }
+    .btn-reset-pw:hover {
+        background: var(--btn-info-hover);
+    }
 </style>
 {% endblock %}
 
@@ -32,12 +92,12 @@
 
 <div class="actions-bar">
      <div class="filter-section">
-        {# --- Filters --- #}
         <form method="GET" action="{{ url_for('admin_customers.manage_customers') }}" id="filterForm" style="display: flex; gap: 15px; align-items: center;">
-            <div class="search-bar" style="flex-grow: 1; margin-bottom: 0;">
+            <div class="search-bar">
                 <span class="search-icon">🔍</span>
                 <input type="text" name="search" class="search-input" placeholder="Search Name, Email, ERP Name..." value="{{ search_term or '' }}">
             </div>
+            
              <select name="status" class="filter-select" onchange="document.getElementById('filterForm').submit()">
                 <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
                 <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive</option>
@@ -46,7 +106,6 @@
             <button type="submit" class="btn btn-secondary">Filter</button>
             <a href="{{ url_for('admin_customers.manage_customers') }}" class="btn btn-secondary">Reset</a>
          </form>
-         {# --- End Filters --- #}
     </div>
     <button class="btn btn-primary" onclick="openAddModal()">
         + Add New Customer
@@ -60,7 +119,7 @@
             <tr>
                 <th>Name</th>
                 <th>Email</th>
-                <th>ERP Customer Name</th>
+                <th>ERP Customer Name(s)</th>
                 <th>Status</th>
                 <th>Last Login</th>
                 <th>Actions</th>
@@ -71,7 +130,7 @@
             <tr>
                 <td>{{ customer.first_name }} {{ customer.last_name }}</td>
                 <td>{{ customer.email }}</td>
-                <td>{{ customer.erp_customer_name }}</td>
+                <td>{{ customer.erp_customer_name.replace('|', ', ') }}</td>
                 <td>
                     {% if customer.is_active %}
                     <span class="status-badge status-active">Active</span>
@@ -82,11 +141,18 @@
                 <td>{{ customer.last_login_date.strftime('%Y-%m-%d %H:%M') if customer.last_login_date else 'Never' }}</td>
                 <td>
                     <div class="actions">
-                        {# --- THIS IS THE FIX --- #}
-                        {# Changed onclick="... to onclick='... #}
                         <button class="btn btn-secondary btn-sm" onclick='openEditModal({{ customer | tojson | safe }})'>
                             ✏️ Edit
                         </button>
+                        
+                        <!-- === NEW: Reset Password Button === -->
+                        <button class="btn btn-info btn-sm"
+                                id="reset-btn-{{ customer.customer_id }}"
+                                onclick="triggerAdminReset({{ customer.customer_id }}, '{{ customer.first_name }} {{ customer.last_name }}', this)">
+                            🔑 Reset PW
+                        </button>
+                        <!-- === END NEW === -->
+                        
                         {% if customer.is_active %}
                         <button class="btn btn-secondary btn-sm"
                                 onclick="deactivateCustomer({{ customer.customer_id }}, '{{ customer.first_name }} {{ customer.last_name }}')">
@@ -98,8 +164,6 @@
                              ✅ Reactivate
                         </button>
                         {% endif %}
-                        {# Add trigger password reset button later #}
-                        {# <button class="btn btn-info btn-sm" onclick="triggerReset({{ customer.customer_id }})">🔑 Reset PW</button> #}
                     </div>
                 </td>
             </tr>
@@ -115,12 +179,6 @@
     {% endif %}
 </div>
 
-{# --- DATALIST for ERP Customer Names (New) --- #}
-<datalist id="erp-customer-list">
-    {% for name in erp_customer_names %}
-    <option value="{{ name }}">
-    {% endfor %}
-</datalist>
 
 <div id="addModal" class="modal">
     <div class="modal-content">
@@ -144,14 +202,27 @@
             <div class="form-group">
                 <label for="password">Password *</label>
                 <input type="password" id="password" name="password" class="form-control" required autocomplete="new-password">
-                <small>Minimum 8 characters.</small>
+                <small>Minimum 8 characters. User will be forced to change this on first login.</small>
             </div>
+            
             <div class="form-group">
-                <label for="erp_customer_name">ERP Customer Name *</label>
-                {# --- MODIFIED: Added list attribute --- #}
-                <input type="text" id="erp_customer_name" name="erp_customer_name" class="form-control" required list="erp-customer-list">
-                <small>Must exactly match the name in ERP (e.g., from `dmpr1.p1_name`).</small>
+                <label for="erp_customer_name_add">ERP Customer Name(s) *</label>
+                <div id="erp_customer_name_add" class="checkbox-container">
+                    <label>
+                        <input type="checkbox" name="erp_customer_name" value="All" class="erp-checkbox-add" onchange="handleAllCheck(this, 'add')">
+                        <strong>All Customers (Overrides all others)</strong>
+                    </label>
+                    <hr>
+                    {% for name in erp_customer_names %}
+                    <label>
+                        <input type="checkbox" name="erp_customer_name" value="{{ name }}" class="erp-checkbox-add" onchange="handleCustomerCheck(this, 'add')">
+                        {{ name }}
+                    </label>
+                    {% endfor %}
+                </div>
+                <small>Must select at least one customer or "All".</small>
             </div>
+            
             <div class="modal-actions">
                 <button type="button" class="btn btn-secondary" onclick="dtUtils.closeModal('addModal')">Cancel</button>
                 <button type="submit" class="btn btn-primary">Add Customer</button>
@@ -180,16 +251,29 @@
                 <label for="edit_email">Email Address *</label>
                 <input type="email" id="edit_email" name="edit_email" class="form-control" required autocomplete="off">
             </div>
+            
              <div class="form-group">
-                <label for="edit_erp_customer_name">ERP Customer Name *</label>
-                {# --- MODIFIED: Added list attribute --- #}
-                <input type="text" id="edit_erp_customer_name" name="edit_erp_customer_name" class="form-control" required list="erp-customer-list">
-                 <small>Must exactly match the name in ERP.</small>
+                <label for="erp_customer_name_edit">ERP Customer Name(s) *</label>
+                <div id="erp_customer_name_edit" class="checkbox-container">
+                    <label>
+                        <input type="checkbox" name="edit_erp_customer_name" value="All" class="erp-checkbox-edit" onchange="handleAllCheck(this, 'edit')">
+                        <strong>All Customers (Overrides all others)</strong>
+                    </label>
+                    <hr>
+                    {% for name in erp_customer_names %}
+                    <label>
+                        <input type="checkbox" name="edit_erp_customer_name" value="{{ name }}" class="erp-checkbox-edit" onchange="handleCustomerCheck(this, 'edit')">
+                        {{ name }}
+                    </label>
+                    {% endfor %}
+                </div>
+                <small>Must select at least one customer or "All".</small>
             </div>
+            
              <div class="form-group">
                 <label for="edit_password">New Password (Optional)</label>
                 <input type="password" id="edit_password" name="edit_password" class="form-control" autocomplete="new-password">
-                <small>Leave blank to keep current password. Minimum 8 characters if setting new.</small>
+                <small>Leave blank to keep current password. User will be forced to reset if new one is set.</small>
             </div>
             <div class="form-group checkbox-group">
                  <input type="checkbox" id="edit_is_active" name="edit_is_active" value="true">
@@ -207,33 +291,86 @@
 
 {% block scripts %}
 <script>
+    // === Checkbox logic helpers ===
+    function handleAllCheck(allCheckbox, modalType) {
+        const selector = `.erp-checkbox-${modalType}`;
+        const otherCheckboxes = document.querySelectorAll(selector + ':not([value="All"])');
+        
+        if (allCheckbox.checked) {
+            otherCheckboxes.forEach(cb => { 
+                cb.checked = false;
+                cb.disabled = true;
+            });
+        } else {
+            otherCheckboxes.forEach(cb => { 
+                cb.disabled = false;
+            });
+        }
+    }
+
+    function handleCustomerCheck(customerCheckbox, modalType) {
+        const allCheckbox = document.querySelector(`.erp-checkbox-${modalType}[value="All"]`);
+        
+        if (customerCheckbox.checked && allCheckbox.checked) {
+            allCheckbox.checked = false;
+            const otherCheckboxes = document.querySelectorAll(`.erp-checkbox-${modalType}:not([value="All"])`);
+            otherCheckboxes.forEach(cb => cb.disabled = false);
+        }
+    }
+
     function openAddModal() {
-        dtUtils.resetForm('addForm'); // Reset form using common.js function
+        dtUtils.resetForm('addForm');
+        document.querySelectorAll('.erp-checkbox-add').forEach(cb => {
+            cb.checked = false;
+            cb.disabled = false;
+        });
         dtUtils.openModal('addModal');
     }
 
     function openEditModal(customerData) {
-        // Populate the edit form
         document.getElementById('edit_customer_id').value = customerData.customer_id;
         document.getElementById('edit_first_name').value = customerData.first_name || '';
         document.getElementById('edit_last_name').value = customerData.last_name || '';
         document.getElementById('edit_email').value = customerData.email || '';
-        document.getElementById('edit_erp_customer_name').value = customerData.erp_customer_name || '';
-        document.getElementById('edit_password').value = ''; // Clear password field
+        
+        const editCheckboxes = document.querySelectorAll('.erp-checkbox-edit');
+        editCheckboxes.forEach(cb => {
+             cb.checked = false;
+             cb.disabled = false;
+        });
+        
+        const selected_names = customerData.erp_customer_name ? customerData.erp_customer_name.split('|') : [];
+        let isAll = false;
+        editCheckboxes.forEach(cb => {
+            if (selected_names.includes(cb.value)) {
+                cb.checked = true;
+                if (cb.value === 'All') {
+                    isAll = true;
+                }
+            }
+        });
+        
+        if (isAll) {
+             document.querySelectorAll('.erp-checkbox-edit:not([value="All"])').forEach(cb => {
+                 cb.disabled = true;
+             });
+        }
+        
+        document.getElementById('edit_password').value = ''; 
         document.getElementById('edit_is_active').checked = customerData.is_active || false;
-
         dtUtils.openModal('editModal');
     }
 
-    // --- MAJOR FIX: This is the code that fixes the Edit functionality ---
     document.getElementById('editForm').addEventListener('submit', function(e) {
         e.preventDefault();
         const customerId = document.getElementById('edit_customer_id').value;
         const form = e.target;
+        
+        document.querySelectorAll('.erp-checkbox-edit').forEach(cb => cb.disabled = false);
+
         const formData = new FormData(form);
         const submitButton = form.querySelector('button[type="submit"]');
 
-        // Manually set checkbox value (FormData only includes checked boxes)
         const isActive = document.getElementById('edit_is_active').checked;
         formData.set('edit_is_active', isActive ? 'true' : 'false');
 
@@ -249,15 +386,16 @@
             if (data.success) {
                 dtUtils.showAlert(data.message, 'success');
                 dtUtils.closeModal('editModal');
-                // Reload after a short delay to see changes
                 setTimeout(() => window.location.reload(), 1000);
             } else {
                 dtUtils.showAlert(data.message, 'error');
+                handleAllCheck(document.querySelector('.erp-checkbox-edit[value="All"]'), 'edit');
             }
         })
         .catch(error => {
             console.error('Update error:', error);
             dtUtils.showAlert('An error occurred during the update.', 'error');
+            handleAllCheck(document.querySelector('.erp-checkbox-edit[value="All"]'), 'edit');
         })
         .finally(() => {
             submitButton.disabled = false;
@@ -265,24 +403,19 @@
         });
     });
 
-    // Deactivate Customer (using common.js deleteItem confirmation)
     function deactivateCustomer(customerId, customerName) {
         dtUtils.deleteItem(
-            `/admin/customers/deactivate/${customerId}`, // URL for the POST request
-            customerName, // Item name for confirmation message
-            (data) => { // onSuccess callback (optional)
-                 // deleteItem already shows success and reloads
-            }
+            `/admin/customers/deactivate/${customerId}`,
+            customerName,
+            (data) => {}
         );
     }
 
-    // Reactivate Customer
     function reactivateCustomer(customerId, customerName) {
         if (confirm(`Are you sure you want to reactivate "${customerName}"?`)) {
             fetch(`/admin/customers/reactivate/${customerId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' }
-                // No body needed for simple reactivation usually
             })
             .then(response => response.json())
             .then(data => {
@@ -296,6 +429,34 @@
                 dtUtils.showAlert('An error occurred during reactivation.', 'error');
             });
         }
+    }
+    
+    // === NEW: Admin Password Reset Function ===
+    function triggerAdminReset(customerId, customerName, buttonElement) {
+        const originalText = buttonElement.innerHTML;
+        if (!confirm(`Are you sure you want to reset the password for "${customerName}"?\n\nA new temporary password will be generated and emailed to them.`)) {
+            return;
+        }
+
+        buttonElement.disabled = true;
+        buttonElement.innerHTML = 'Sending...';
+
+        fetch(`/admin/customers/admin-reset-password/${customerId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        .then(response => response.json())
+        .then(data => {
+            dtUtils.showAlert(data.message, data.success ? 'success' : 'error');
+        })
+        .catch(error => {
+            console.error('Admin Reset error:', error);
+            dtUtils.showAlert('An error occurred during the password reset.', 'error');
+        })
+        .finally(() => {
+            buttonElement.disabled = false;
+            buttonElement.innerHTML = originalText;
+        });
     }
 
 </script>

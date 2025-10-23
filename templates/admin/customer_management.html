@@ -1,0 +1,285 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Customers - Admin{% endblock %}
+
+{% block navbar_title %}👥 Manage Customers{% endblock %}
+
+{% block nav_links %}
+    <span style="color: white; margin-right: 15px;">Admin: {{ session.admin.username }}</span>
+    <a href="{{ url_for('admin_panel.panel') }}">Admin Dashboard</a>
+    <a href="{{ url_for('main.admin_logout') }}">Admin Logout</a>
+{% endblock %}
+
+{% block styles %}
+{# admin.css is already included in base.html #}
+<style>
+    .actions-bar { margin-bottom: 20px; } /* Ensure spacing */
+    .search-bar { position: relative; margin-bottom: 15px; }
+    .search-input { width: 100%; padding: 10px 15px 10px 40px; }
+    .search-icon { position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: var(--text-tertiary);}
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+    .checkbox-group label { margin-left: 5px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="header-card">
+    <h1>Customer Account Management</h1>
+    <p>Create, view, edit, and manage customer portal access.</p>
+</div>
+
+<div id="alerts"></div> {# For JS alerts from common.js #}
+
+<div class="actions-bar">
+     <div class="filter-section">
+        {# --- Filters --- #}
+        <form method="GET" action="{{ url_for('admin_customers.manage_customers') }}" id="filterForm" style="display: flex; gap: 15px; align-items: center;">
+            <div class="search-bar" style="flex-grow: 1; margin-bottom: 0;">
+                <span class="search-icon">🔍</span>
+                <input type="text" name="search" class="search-input" placeholder="Search Name, Email, ERP Name..." value="{{ search_term or '' }}">
+            </div>
+             <select name="status" class="filter-select" onchange="document.getElementById('filterForm').submit()">
+                <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
+                <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive</option>
+                <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All</option>
+            </select>
+            <button type="submit" class="btn btn-secondary">Filter</button>
+            <a href="{{ url_for('admin_customers.manage_customers') }}" class="btn btn-secondary">Reset</a>
+         </form>
+         {# --- End Filters --- #}
+    </div>
+    <button class="btn btn-primary" onclick="openAddModal()">
+        + Add New Customer
+    </button>
+</div>
+
+<div class="data-table">
+    {% if customers %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>ERP Customer Name</th>
+                <th>Status</th>
+                <th>Last Login</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for customer in customers %}
+            <tr>
+                <td>{{ customer.first_name }} {{ customer.last_name }}</td>
+                <td>{{ customer.email }}</td>
+                <td>{{ customer.erp_customer_name }}</td>
+                <td>
+                    {% if customer.is_active %}
+                    <span class="status-badge status-active">Active</span>
+                    {% else %}
+                    <span class="status-badge status-inactive">Inactive</span>
+                    {% endif %}
+                </td>
+                <td>{{ customer.last_login_date.strftime('%Y-%m-%d %H:%M') if customer.last_login_date else 'Never' }}</td>
+                <td>
+                    <div class="actions">
+                        <button class="btn btn-secondary btn-sm" onclick="openEditModal({{ customer | tojson | safe }})">
+                            ✏️ Edit
+                        </button>
+                        {% if customer.is_active %}
+                        <button class="btn btn-secondary btn-sm"
+                                onclick="deactivateCustomer({{ customer.customer_id }}, '{{ customer.first_name }} {{ customer.last_name }}')">
+                            🚫 Deactivate
+                        </button>
+                        {% else %}
+                         <button class="btn btn-info btn-sm"
+                                 onclick="reactivateCustomer({{ customer.customer_id }}, '{{ customer.first_name }} {{ customer.last_name }}')">
+                             ✅ Reactivate
+                        </button>
+                        {% endif %}
+                        {# Add trigger password reset button later #}
+                        {# <button class="btn btn-info btn-sm" onclick="triggerReset({{ customer.customer_id }})">🔑 Reset PW</button> #}
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-state-icon">👥</div>
+        <h3>No Customers Found</h3>
+        <p>No customers match the current filter criteria, or none have been added yet.</p>
+    </div>
+    {% endif %}
+</div>
+
+<div id="addModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="dtUtils.closeModal('addModal')">&times;</span>
+        <h2>Add New Customer</h2>
+        <form id="addForm" method="POST" action="{{ url_for('admin_customers.add_customer') }}">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="first_name">First Name *</label>
+                    <input type="text" id="first_name" name="first_name" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="last_name">Last Name *</label>
+                    <input type="text" id="last_name" name="last_name" class="form-control" required>
+                </div>
+            </div>
+             <div class="form-group">
+                <label for="email">Email Address *</label>
+                <input type="email" id="email" name="email" class="form-control" required autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label for="password">Password *</label>
+                <input type="password" id="password" name="password" class="form-control" required autocomplete="new-password">
+                <small>Minimum 8 characters.</small>
+            </div>
+            <div class="form-group">
+                <label for="erp_customer_name">ERP Customer Name *</label>
+                <input type="text" id="erp_customer_name" name="erp_customer_name" class="form-control" required>
+                <small>Must exactly match the name in ERP (e.g., from `dmpr1.p1_name`).</small>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="dtUtils.closeModal('addModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Add Customer</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="editModal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="dtUtils.closeModal('editModal')">&times;</span>
+        <h2>Edit Customer</h2>
+        <form id="editForm"> {# Will be submitted via JS #}
+            <input type="hidden" id="edit_customer_id" name="customer_id">
+             <div class="form-row">
+                <div class="form-group">
+                    <label for="edit_first_name">First Name *</label>
+                    <input type="text" id="edit_first_name" name="edit_first_name" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label for="edit_last_name">Last Name *</label>
+                    <input type="text" id="edit_last_name" name="edit_last_name" class="form-control" required>
+                </div>
+            </div>
+             <div class="form-group">
+                <label for="edit_email">Email Address *</label>
+                <input type="email" id="edit_email" name="edit_email" class="form-control" required autocomplete="off">
+            </div>
+             <div class="form-group">
+                <label for="edit_erp_customer_name">ERP Customer Name *</label>
+                <input type="text" id="edit_erp_customer_name" name="edit_erp_customer_name" class="form-control" required>
+                 <small>Must exactly match the name in ERP.</small>
+            </div>
+             <div class="form-group">
+                <label for="edit_password">New Password (Optional)</label>
+                <input type="password" id="edit_password" name="edit_password" class="form-control" autocomplete="new-password">
+                <small>Leave blank to keep current password. Minimum 8 characters if setting new.</small>
+            </div>
+            <div class="form-group checkbox-group">
+                 <input type="checkbox" id="edit_is_active" name="edit_is_active" value="true">
+                 <label for="edit_is_active">Account Active</label>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="dtUtils.closeModal('editModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Update Customer</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function openAddModal() {
+        dtUtils.resetForm('addForm'); // Reset form using common.js function
+        dtUtils.openModal('addModal');
+    }
+
+    function openEditModal(customerData) {
+        // Populate the edit form
+        document.getElementById('edit_customer_id').value = customerData.customer_id;
+        document.getElementById('edit_first_name').value = customerData.first_name || '';
+        document.getElementById('edit_last_name').value = customerData.last_name || '';
+        document.getElementById('edit_email').value = customerData.email || '';
+        document.getElementById('edit_erp_customer_name').value = customerData.erp_customer_name || '';
+        document.getElementById('edit_password').value = ''; // Clear password field
+        document.getElementById('edit_is_active').checked = customerData.is_active || false;
+
+        dtUtils.openModal('editModal');
+    }
+
+    // Handle Edit Form Submission via Fetch API
+    document.getElementById('editForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const customerId = document.getElementById('edit_customer_id').value;
+        const formData = new FormData(this);
+
+        // Convert checkbox value correctly
+        const isActive = document.getElementById('edit_is_active').checked;
+        formData.set('edit_is_active', isActive ? 'true' : 'false');
+
+        // Submit using common.js function
+        dtUtils.submitForm('editForm', `/admin/customers/edit/${customerId}`,
+            (data) => { // onSuccess
+                dtUtils.closeModal('editModal');
+                // Reload after a short delay to see changes
+                setTimeout(() => window.location.reload(), 1000);
+            },
+            (errorData) => { // onError (optional)
+                // Error message is already shown by submitForm
+                console.error("Update failed:", errorData);
+            }
+        );
+    });
+
+    // Deactivate Customer (using common.js deleteItem confirmation)
+    function deactivateCustomer(customerId, customerName) {
+        dtUtils.deleteItem(
+            `/admin/customers/deactivate/${customerId}`, // URL for the POST request
+            customerName, // Item name for confirmation message
+            (data) => { // onSuccess callback (optional)
+                 // deleteItem already shows success and reloads
+            }
+        );
+    }
+
+    // Reactivate Customer
+    function reactivateCustomer(customerId, customerName) {
+        if (confirm(`Are you sure you want to reactivate "${customerName}"?`)) {
+            fetch(`/admin/customers/reactivate/${customerId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+                // No body needed for simple reactivation usually
+            })
+            .then(response => response.json())
+            .then(data => {
+                dtUtils.showAlert(data.message, data.success ? 'success' : 'error');
+                if (data.success) {
+                    setTimeout(() => window.location.reload(), 1000);
+                }
+            })
+            .catch(error => {
+                console.error('Reactivation error:', error);
+                dtUtils.showAlert('An error occurred during reactivation.', 'error');
+            });
+        }
+    }
+
+    // --- Placeholder for Trigger Password Reset ---
+    // function triggerReset(customerId) {
+    //     if (confirm('Send a password reset email to this customer?')) {
+    //         fetch(`/admin/customers/trigger-reset/${customerId}`, { method: 'POST' })
+    //             .then(res => res.json())
+    //             .then(data => dtUtils.showAlert(data.message, data.success ? 'success' : 'error'))
+    //             .catch(err => dtUtils.showAlert('Failed to trigger reset.', 'error'));
+    //     }
+    // }
+
+</script>
+{% endblock %}

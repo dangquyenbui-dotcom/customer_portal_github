@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - Customer Portal{% endblock %}
+
+{% block navbar_title %}⚙️ Admin Dashboard{% endblock %}
+
+{# Override nav_links from base to show admin context #}
+{% block nav_links %}
+    <span style="color: white; margin-right: 15px;">Admin: {{ session.admin.username }}</span>
+    <a href="{{ url_for('admin_customers.manage_customers') }}">Manage Customers</a>
+    {# Add links to other admin sections later #}
+    <a href="{{ url_for('main.admin_logout') }}">Admin Logout</a>
+{% endblock %}
+
+{% block styles %}
+{# admin.css is already included in base.html #}
+<style>
+    /* Styles are inherited from admin.css */
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="header-card">
+    <h1>Customer Portal Administration</h1>
+    <p>Manage customer accounts and portal settings.</p>
+</div>
+
+{# Use the admin-grid style from admin.css #}
+<div class="admin-grid">
+    <a href="{{ url_for('admin_customers.manage_customers') }}" class="admin-card">
+        <div class="admin-icon">👥</div>
+        <div class="admin-title">Manage Customers</div>
+        <div class="admin-desc">Add, edit, and manage customer portal access.</div>
+    </a>
+
+    {# Placeholder for future admin functions #}
+    <a href="#" class="admin-card disabled">
+        <div class="admin-icon">📊</div>
+        <div class="admin-title">Usage Analytics (Future)</div>
+        <div class="admin-desc">View customer login and activity statistics.</div>
+    </a>
+     <a href="#" class="admin-card disabled">
+        <div class="admin-icon">⚙️</div>
+        <div class="admin-title">Settings (Future)</div>
+        <div class="admin-desc">Configure portal-wide settings.</div>
+    </a>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+{# No specific JS needed for the basic admin panel yet #}
+{% endblock %}

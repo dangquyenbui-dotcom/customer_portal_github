@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block title %}My Inventory{% endblock %}
+
+{% block navbar_title %}📦 My Inventory{% endblock %}
+
+{% block styles %}
+{# Reuse existing styles from Prod Portal #}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
+<style>
+    /* Maximize container width */
+    .container { max-width: 98vw; padding: 0 1vw; }
+
+    /* Filter Bar Styles (Adapted from Prod Portal Scheduling) */
+    .controls-bar {
+        background: var(--bg-secondary); padding: 15px 20px; border-radius: 10px;
+        margin-bottom: 20px; box-shadow: var(--shadow-sm); border: 1px solid var(--border-primary);
+        display: flex; flex-wrap: wrap; align-items: center; gap: 20px;
+    }
+    .filters-container {
+        display: flex; flex-wrap: wrap; gap: 15px;
+        flex-grow: 1; align-items: center;
+    }
+    .filter-group { display: flex; align-items: center; gap: 8px; }
+    .filter-group label { font-weight: 500; color: var(--text-secondary); white-space: nowrap; flex-shrink: 0; }
+    .filter-select, .search-input { /* Combined styles */
+        min-width: 160px; padding: 8px 12px; border: 2px solid var(--input-border);
+        border-radius: 6px; background: var(--input-bg); color: var(--text-primary); font-size: 14px;
+    }
+    .filter-select {
+        -webkit-appearance: none; appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23718096' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat; background-position: right 12px center; padding-right: 40px;
+    }
+    [data-theme="dark"] .filter-select {
+         background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23cbd5e0' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    }
+    .filter-select:focus, .search-input:focus {
+        outline: none; border-color: var(--input-focus-border);
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    [data-theme="dark"] .filter-select:focus, [data-theme="dark"] .search-input:focus {
+         box-shadow: 0 0 0 3px rgba(144, 205, 244, 0.1);
+    }
+    .search-input { flex-grow: 1; min-width: 250px; } /* Search input specific */
+
+    /* Action Buttons Area */
+    .actions-container { display: flex; gap: 10px; margin-left: auto; }
+
+    /* Grid Table Styles (Adapted from Prod Portal Scheduling) */
+    .grid-container {
+        width: 100%; overflow: auto; background: var(--bg-secondary); border-radius: 10px;
+        box-shadow: var(--shadow-sm); border: 1px solid var(--border-primary);
+        max-height: calc(100vh - 280px); /* Adjust height based on controls */
+    }
+    .grid-table { width: 100%; border-collapse: collapse; }
+    .grid-table thead { position: sticky; top: 0; z-index: 10; }
+    .grid-table th { background: var(--table-header-bg); font-weight: 600; }
+    .grid-table th, .grid-table td {
+        padding: 8px 12px; /* Slightly tighter padding */
+        border: 1px solid var(--border-primary); text-align: left;
+        font-size: 13px; white-space: nowrap;
+    }
+    .grid-table .numeric { text-align: right; }
+    .grid-table .date { text-align: center; } /* Center dates */
+    .hidden-row { display: none; }
+
+    /* Sorting Styles (Copied from Prod Portal Scheduling) */
+    .sortable { cursor: pointer; position: relative; user-select: none; }
+    .sortable:hover { background-color: var(--bg-hover); }
+    .sort-indicator { display: inline-block; margin-left: 5px; color: var(--text-tertiary); opacity: 0.5; transition: opacity 0.2s; width: 1em; }
+    .sortable.sorted-asc .sort-indicator, .sortable.sorted-desc .sort-indicator { opacity: 1; color: var(--accent-blue); }
+
+    /* Grid Footer (Copied from Prod Portal Scheduling) */
+    .grid-footer { padding: 10px; text-align: right; font-size: 14px; color: var(--text-tertiary); font-weight: 500; background: var(--bg-secondary); border-radius: 0 0 10px 10px; border: 1px solid var(--border-primary); border-top: none; margin-top: -1px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="header-card">
+    <h1>Inventory Overview</h1>
+    <p>View your current on-hand inventory details.</p>
+</div>
+
+{# --- Filter Bar --- #}
+<div class="controls-bar">
+    <div class="filters-container">
+        <div class="filter-group">
+            <label for="partFilter">Part:</label>
+            <select id="partFilter" class="form-select filter-select">
+                <option value="">All Parts</option>
+                {% for part in filter_parts %}
+                <option value="{{ part }}">{{ part }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-group">
+            <label for="binFilter">Bin:</label>
+             <select id="binFilter" class="form-select filter-select">
+                <option value="">All Bins</option>
+                 {% for bin_loc in filter_bins %}
+                <option value="{{ bin_loc }}">{{ bin_loc }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-group" style="flex-grow: 1;">
+            <label for="textSearch">Search:</label>
+            <input type="text" id="textSearch" class="search-input" placeholder="Filter by Description, Lot, Ref, PO...">
+        </div>
+        <button class="btn btn-secondary" id="resetBtn">Reset Filters</button>
+    </div>
+    <div class="actions-container">
+        <button class="btn btn-primary" id="exportBtn">
+            📥 Download XLSX
+        </button>
+    </div>
+</div>
+
+<div id="alerts"></div> {# For JS alerts #}
+
+{# --- Inventory Grid --- #}
+<div class="grid-container">
+    <table class="grid-table">
+        <thead>
+            <tr>
+                {# Add sortable attributes based on expected data types #}
+                <th class="sortable" data-column-id="Part" data-type="string">Part<span class="sort-indicator"></span></th>
+                <th class="sortable" data-column-id="Description" data-type="string">Description<span class="sort-indicator"></span></th>
+                <th class="sortable numeric" data-column-id="On_Hand_Qty" data-type="numeric">On Hand Qty<span class="sort-indicator"></span></th>
+                <th class="sortable" data-column-id="Unit" data-type="string">Unit<span class="sort-indicator"></span></th>
+                <th class="sortable" data-column-id="BIN" data-type="string">Bin<span class="sort-indicator"></span></th>
+                <th class="sortable" data-column-id="User_Lot" data-type="string">User Lot<span class="sort-indicator"></span></th>
+                <th class="sortable date" data-column-id="Exp_Date" data-type="date">Exp Date<span class="sort-indicator"></span></th>
+                <th class="sortable" data-column-id="Reference" data-type="string">Reference<span class="sort-indicator"></span></th>
+                <th class="sortable" data-column-id="PO" data-type="string">PO<span class="sort-indicator"></span></th>
+                <th class="sortable date" data-column-id="Last_Rec_Date" data-type="date">Last Rec Date<span class="sort-indicator"></span></th>
+                <th class="sortable date" data-column-id="Last_Transaction_Date" data-type="date">Last Tran Date<span class="sort-indicator"></span></th>
+                {# Hidden Customer Part for potential future use or filtering #}
+                <th style="display:none;" data-column-id="Customer_Part">Customer Part</th>
+            </tr>
+        </thead>
+        <tbody id="inventory-body">
+            {% if inventory_data %}
+                {% for item in inventory_data %}
+                <tr>
+                    <td>{{ item.Part }}</td>
+                    <td>{{ item.Description }}</td>
+                    <td class="numeric">{{ "{:,.2f}".format(item.On_Hand_Qty | float) }}</td>
+                    <td>{{ item.Unit }}</td>
+                    <td>{{ item.BIN }}</td>
+                    <td>{{ item.User_Lot }}</td>
+                    <td class="date">{{ item.Exp_Date }}</td>
+                    <td>{{ item.Reference }}</td>
+                    <td>{{ item.PO }}</td>
+                    <td class="date">{{ item.Last_Rec_Date }}</td>
+                    <td class="date">{{ item.Last_Transaction_Date }}</td>
+                    <td style="display:none;">{{ item.Customer_Part }}</td> {# Hidden #}
+                </tr>
+                {% endfor %}
+            {% elif error_message %}
+                <tr><td colspan="11" style="text-align: center; color: var(--accent-red); padding: 20px;">{{ error_message }}</td></tr>
+            {% else %}
+                <tr><td colspan="11" style="text-align: center; color: var(--text-tertiary); padding: 20px;">No inventory data found for your account.</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+<div class="grid-footer" id="gridFooter">
+    <span id="rowCount">Showing 0 rows</span>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{# --- Link to the new inventory JS file --- #}
+<script src="{{ url_for('static', filename='js/inventory.js') }}"></script>
+{% endblock %}

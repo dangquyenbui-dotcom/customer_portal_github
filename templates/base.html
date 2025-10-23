@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en"> {# Update lang dynamically later if needed #}
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Customer Portal{% endblock %} - WePackItAll</title>
+
+    {# --- Favicon and Theme Setup (Copied from Prod Portal) --- #}
+    <link id="favicon" rel="icon" href="" type="image/png">
+    <script>
+        window.FAVICON_PATHS = {
+            light: "{{ url_for('static', filename='img/WPIA_Light.png') }}",
+            dark: "{{ url_for('static', filename='img/WPIA_Dark.png') }}"
+        };
+        (function() {
+            var theme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', theme);
+            var favicon = document.getElementById('favicon');
+            if (favicon) {
+                favicon.setAttribute('href', theme === 'dark' ? window.FAVICON_PATHS.dark : window.FAVICON_PATHS.light);
+            }
+        })();
+    </script>
+
+    {# --- CSS (Reuse from Prod Portal) --- #}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}"> {# Include admin styles globally for now #}
+
+    {% block styles %}{% endblock %}
+</head>
+<body class="loaded"> {# Added loaded class #}
+
+    {% block navbar %}
+    <div class="navbar">
+        <div class="navbar-brand">
+            {# --- Use WPIA Logos (Copied from Prod Portal) --- #}
+            <a href="{{ url_for('main.index') }}" class="navbar-logo-link">
+                <img src="{{ url_for('static', filename='img/wepackitall-logo-final-rgb-web.jpg') }}" alt="WePackItAll Logo" class="logo-light" style="height: 45px;">
+                <img src="{{ url_for('static', filename='img/wepackitall-logo-final-rgb-reversed-web.png') }}" alt="WePackItAll Logo" class="logo-dark" style="height: 45px;">
+            </a>
+            <h1>{% block navbar_title %}📦 Customer Portal{% endblock %}</h1>
+        </div>
+        <div class="nav-links">
+            {# --- Theme Toggle (Copied from Prod Portal) --- #}
+            <div class="theme-toggle-wrapper">
+                <span class="theme-icon">☀️</span>
+                <label class="theme-toggle">
+                    <input type="checkbox" id="themeToggle">
+                    <span class="theme-toggle-slider"></span>
+                </label>
+                <span class="theme-icon">🌙</span>
+            </div>
+
+            {% block nav_links %}
+                {# --- Links depend on whether customer or admin is logged in --- #}
+                {% if session.customer %}
+                    <span style="color: white; margin-right: 15px;">Welcome, {{ session.customer.first_name }}!</span>
+                    <a href="{{ url_for('inventory.view_inventory') }}">My Inventory</a>
+                    <a href="{{ url_for('main.logout') }}">Logout</a>
+                {% elif session.admin %}
+                     <span style="color: white; margin-right: 15px;">Admin: {{ session.admin.username }}</span>
+                     <a href="{{ url_for('admin_panel.panel') }}">Admin Dashboard</a>
+                     <a href="{{ url_for('main.admin_logout') }}">Admin Logout</a>
+                {% else %}
+                    {# Show login links if needed, or nothing #}
+                     <a href="{{ url_for('main.login') }}">Customer Login</a>
+                     <a href="{{ url_for('main.admin_login') }}">Admin Login</a>
+                {% endif %}
+            {% endblock %}
+        </div>
+    </div>
+    {% endblock %}
+
+    {% block container %}
+    <div class="container">
+        {# --- Flash Messages (Copied from Prod Portal) --- #}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div id="alerts">
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %} {# Main content block #}
+    </div>
+    {% endblock %}
+
+    {# --- JS (Reuse from Prod Portal) --- #}
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/common.js') }}"></script>
+
+    {% block scripts %}{% endblock %} {# Page-specific scripts #}
+</body>
+</html>

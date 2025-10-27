@@ -18,7 +18,7 @@ class ERPInventoryQueries:
             print("❌ [ERP Inventory] Failed to get ERP DB connection.")
             return []
 
-        # === MODIFICATION: Dynamic SQL Query Building ===
+        # === MODIFICATION: Updated SQL Query ===
         
         # The main SQL query provided by the user, without the customer filter
         sql_base = """
@@ -52,17 +52,31 @@ class ERPInventoryQueries:
                         WHERE f3.fi_lotnum = dtfifo.fi_lotnum
                             AND f3.fi_action = 'Finish Job'
                             AND f3.fi_postref LIKE 'JJ-%'
-                        ORDER BY tor.to_id DESC -- Order by header ID to get the latest PO if multiple links exist
+                        ORDER BY lj.lj_jobnum DESC -- MODIFIED ORDER BY
                     ), 'N/A')
                     ELSE 'N/A'
-                END AS PO
+                END AS PO,
+                CASE 
+                    WHEN dtfifo.fi_type = 'quarantine' THEN 'Quarantined'
+                    WHEN dtfifo.fi_type = 'job' THEN 'Issued to Job'
+                    WHEN dtfifo.fi_type = 'sal-reserv' THEN 'Sales Reserved'
+                    WHEN dtfifo.fi_type = 'staging' THEN 'Staged to Job'
+                    WHEN EXISTS (
+                        SELECT 1 
+                        FROM dtfifo f4 
+                        WHERE f4.fi_lotnum = dtfifo.fi_lotnum 
+                            AND f4.fi_action = 'Failed QC'
+                    ) THEN 'Failed QC'
+                    WHEN dtfifo.fi_qc = 'Pending' THEN 'Pending QC'
+                    WHEN (fi_qc = '' OR fi_qc IS NULL) THEN 'Approved QC'
+                    ELSE 'Available'
+                END AS Status
             FROM dtfifo
             INNER JOIN dmprod ON dtfifo.fi_prid = dmprod.pr_id
             LEFT JOIN dmpr1 ON dmprod.pr_user5 = dmpr1.p1_id
             LEFT JOIN dmunit ON dmunit.un_id = dmprod.pr_unid
             INNER JOIN dmloc ON dtfifo.fi_loid = dmloc.lo_id
             WHERE dtfifo.fi_balance > 0
-                AND dtfifo.fi_type NOT IN ('quarantine', 'job', 'staging')
         """
         
         params = []

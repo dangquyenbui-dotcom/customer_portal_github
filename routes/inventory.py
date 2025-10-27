@@ -38,7 +38,8 @@ def view_inventory():
     # Extract unique values for filters BEFORE passing to template
     parts = sorted(list(set(item.get('Part', '') for item in inventory_data if item.get('Part'))))
     bins = sorted(list(set(item.get('BIN', '') for item in inventory_data if item.get('BIN'))))
-    # Add more filter options if needed (e.g., User_Lot, Exp_Date ranges)
+    # --- NEW: Add Status filter ---
+    statuses = sorted(list(set(item.get('Status', '') for item in inventory_data if item.get('Status'))))
 
     return render_template(
         'inventory_view.html',
@@ -46,7 +47,8 @@ def view_inventory():
         error_message=error_message,
         # Pass filter options
         filter_parts=parts,
-        filter_bins=bins
+        filter_bins=bins,
+        filter_statuses=statuses # --- NEW ---
     )
 
 @inventory_bp.route('/api/export-xlsx', methods=['POST'])

@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', function() {
     restoreSortState(); // Restore sort state
     updateSortIndicators(); // Update visual indicators for sort
     filterInventoryTable(); // Apply initial filter and sort
+    updateDynamicFilters(null); // Populate dynamic filters on first load
 
     // Export button listener
     document.getElementById('exportBtn').addEventListener('click', exportVisibleDataToXlsx);
@@ -26,10 +27,27 @@ let sortState = { // Default sort
 
 // --- Event Listeners ---
 function attachFilterListeners() {
-    document.getElementById('partFilter').addEventListener('change', filterInventoryTable);
-    document.getElementById('binFilter').addEventListener('change', filterInventoryTable);
-    document.getElementById('textSearch').addEventListener('input', dtUtils.debounce(filterInventoryTable, 250)); // Debounce text search
-    document.getElementById('resetBtn').addEventListener('click', resetFilters);
+    document.getElementById('partFilter').addEventListener('change', (e) => {
+        filterInventoryTable();
+        updateDynamicFilters(e.target.id);
+    });
+    document.getElementById('binFilter').addEventListener('change', (e) => {
+        filterInventoryTable();
+        updateDynamicFilters(e.target.id);
+    });
+    document.getElementById('statusFilter').addEventListener('change', (e) => {
+        filterInventoryTable();
+        updateDynamicFilters(e.target.id);
+    });
+    // --- MODIFIED: Added 'textSearch' as an ID to pass to updateDynamicFilters ---
+    document.getElementById('textSearch').addEventListener('input', dtUtils.debounce((e) => {
+        filterInventoryTable();
+        updateDynamicFilters('textSearch');
+    }, 250));
+    document.getElementById('resetBtn').addEventListener('click', () => {
+        resetFilters(); // This already calls filterInventoryTable
+        updateDynamicFilters(null); // 'null' signifies a full reset
+    });
 }
 
 // --- Filter Logic ---
@@ -37,6 +55,7 @@ function saveFilters() {
     const filters = {
         part: document.getElementById('partFilter').value,
         bin: document.getElementById('binFilter').value,
+        status: document.getElementById('statusFilter').value,
         text: document.getElementById('textSearch').value,
     };
     sessionStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filters));
@@ -47,6 +66,7 @@ function restoreFilters() {
     if (savedFilters) {
         document.getElementById('partFilter').value = savedFilters.part || '';
         document.getElementById('binFilter').value = savedFilters.bin || '';
+        document.getElementById('statusFilter').value = savedFilters.status || '';
         document.getElementById('textSearch').value = savedFilters.text || '';
     }
 }
@@ -54,6 +74,7 @@ function restoreFilters() {
 function resetFilters() {
     document.getElementById('partFilter').value = '';
     document.getElementById('binFilter').value = '';
+    document.getElementById('statusFilter').value = '';
     document.getElementById('textSearch').value = '';
     sessionStorage.removeItem(FILTER_STORAGE_KEY);
     filterInventoryTable(); // Re-apply empty filters
@@ -62,6 +83,7 @@ function resetFilters() {
 function filterInventoryTable() {
     const partFilter = document.getElementById('partFilter').value;
     const binFilter = document.getElementById('binFilter').value;
+    const statusFilter = document.getElementById('statusFilter').value;
     const textSearch = document.getElementById('textSearch').value.toLowerCase();
 
     const tableBody = document.getElementById('inventory-body');
@@ -69,26 +91,24 @@ function filterInventoryTable() {
     let visibleCount = 0;
 
     rows.forEach(row => {
-        // Skip header rows if any, or placeholder rows
-        if (row.cells.length < 11) return;
+        // Updated cell count check to 12
+        if (row.cells.length < 12) return;
 
         const part = row.cells[0].textContent;
-        const description = row.cells[1].textContent.toLowerCase();
         const bin = row.cells[4].textContent;
-        const userLot = row.cells[5].textContent.toLowerCase();
-        const reference = row.cells[7].textContent.toLowerCase();
-        const po = row.cells[8].textContent.toLowerCase();
+        const status = row.cells[9].textContent;
+
+        // --- MODIFIED: Get all row text content for searching ---
+        const rowText = row.textContent.toLowerCase();
 
         let show = true;
 
         if (partFilter && part !== partFilter) show = false;
         if (binFilter && bin !== binFilter) show = false;
-        if (textSearch && !(
-               description.includes(textSearch) ||
-               userLot.includes(textSearch) ||
-               reference.includes(textSearch) ||
-               po.includes(textSearch)
-           )) {
+        if (statusFilter && status !== statusFilter) show = false;
+        
+        // --- MODIFIED: Check if rowText includes the search term ---
+        if (textSearch && !rowText.includes(textSearch)) {
             show = false;
         }
 
@@ -100,6 +120,107 @@ function filterInventoryTable() {
     saveFilters();
     sortTable(); // Re-apply sort after filtering
 }
+
+// --- NEW: Dynamic Filter Population Logic ---
+
+/**
+ * Rebuilds a single filter dropdown based on the currently visible table rows.
+ * @param {string} selectId - The ID of the <select> element to rebuild.
+ * @param {Set<string>} availableOptions - A Set of strings containing the options that are valid.
+ */
+function rebuildDropdown(selectId, availableOptions) {
+    const select = document.getElementById(selectId);
+    if (!select) return;
+
+    const currentValue = select.value; // Save the user's current selection
+    const firstOption = select.options[0]; // Save the "All..." option
+
+    select.innerHTML = ''; // Clear all existing options
+    select.appendChild(firstOption); // Add the "All..." option back
+
+    const sortedOptions = Array.from(availableOptions).sort();
+    
+    sortedOptions.forEach(value => {
+        if (value) { // Ensure value is not empty
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = value;
+            select.appendChild(option);
+        }
+    });
+
+    // Restore the user's selection
+    // If their previous selection is still in the list, it will be selected.
+    // If not, it will default to "All...".
+    select.value = currentValue;
+}
+
+/**
+ * Updates the options in all filter dropdowns based on the current filtering.
+ * @param {string | null} changedFilterId - The ID of the filter that was just changed (or null/textSearch if all should be updated).
+ */
+function updateDynamicFilters(changedFilterId) {
+    const partFilter = document.getElementById('partFilter').value;
+    const binFilter = document.getElementById('binFilter').value;
+    const statusFilter = document.getElementById('statusFilter').value;
+    const textSearch = document.getElementById('textSearch').value.toLowerCase();
+
+    const tableBody = document.getElementById('inventory-body');
+    const allRows = tableBody.querySelectorAll('tr');
+
+    const availableParts = new Set();
+    const availableBins = new Set();
+    const availableStatuses = new Set();
+
+    allRows.forEach(row => {
+        if (row.cells.length < 12) return;
+        
+        const part = row.cells[0].textContent;
+        const bin = row.cells[4].textContent;
+        const status = row.cells[9].textContent;
+
+        // --- MODIFIED: Get all row text content for searching ---
+        const rowText = row.textContent.toLowerCase();
+
+        // Check if row matches text search (this applies to all calculations)
+        const matchesText = !textSearch || rowText.includes(textSearch);
+
+        if (!matchesText) return; // If it doesn't match text, it's irrelevant
+
+        // Check which options are available *given the other filters*
+        const matchesPart = !partFilter || part === partFilter;
+        const matchesBin = !binFilter || bin === binFilter;
+        const matchesStatus = !statusFilter || status === statusFilter;
+
+        // Add to available Parts if it matches everything *except* Part
+        if (matchesBin && matchesStatus) {
+            availableParts.add(part);
+        }
+        // Add to available Bins if it matches everything *except* Bin
+        if (matchesPart && matchesStatus) {
+            availableBins.add(bin);
+        }
+        // Add to available Statuses if it matches everything *except* Status
+        if (matchesPart && matchesBin) {
+            availableStatuses.add(status);
+        }
+    });
+
+    // Now, rebuild the dropdowns, but *skip* the one the user just changed
+    // (unless it was a reset or text search, in which case rebuild all)
+    
+    if (changedFilterId !== 'partFilter' || changedFilterId === null || changedFilterId === 'textSearch') {
+        rebuildDropdown('partFilter', availableParts);
+    }
+    if (changedFilterId !== 'binFilter' || changedFilterId === null || changedFilterId === 'textSearch') {
+        rebuildDropdown('binFilter', availableBins);
+    }
+    if (changedFilterId !== 'statusFilter' || changedFilterId === null || changedFilterId === 'textSearch') {
+        rebuildDropdown('statusFilter', availableStatuses);
+    }
+}
+// --- END NEW ---
+
 
 function updateRowCount(visible, total) {
     const rowCountEl = document.getElementById('rowCount');

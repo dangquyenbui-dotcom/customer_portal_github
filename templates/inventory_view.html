@@ -61,6 +61,17 @@
         border: 1px solid var(--border-primary); text-align: left;
         font-size: 13px; white-space: nowrap;
     }
+    
+    /* --- Smart column sizing for Description --- */
+    .grid-table th.col-description,
+    .grid-table td.col-description {
+        white-space: normal;  /* Allow text to wrap */
+        word-break: break-word; /* Break long words if needed */
+        min-width: 200px;     /* Don't let it get too small */
+        max-width: 450px;     /* Stop it from being "huge" */
+        /* The table layout will now shrink this column first */
+    }
+    
     .grid-table .numeric { text-align: right; }
     .grid-table .date { text-align: center; } /* Center dates */
     .hidden-row { display: none; }
@@ -103,9 +114,18 @@
                 {% endfor %}
             </select>
         </div>
+        <div class="filter-group">
+            <label for="statusFilter">Status:</label>
+             <select id="statusFilter" class="form-select filter-select">
+                <option value="">All Statuses</option>
+                 {% for status in filter_statuses %}
+                <option value="{{ status }}">{{ status }}</option>
+                {% endfor %}
+            </select>
+        </div>
         <div class="filter-group" style="flex-grow: 1;">
             <label for="textSearch">Search:</label>
-            <input type="text" id="textSearch" class="search-input" placeholder="Filter by Description, Lot, Ref, PO...">
+            <input type="text" id="textSearch" class="search-input" placeholder="Filter by Part, Description, Lot, Ref, PO...">
         </div>
         <button class="btn btn-secondary" id="resetBtn">Reset Filters</button>
     </div>
@@ -125,7 +145,7 @@
             <tr>
                 {# Add sortable attributes based on expected data types #}
                 <th class="sortable" data-column-id="Part" data-type="string">Part<span class="sort-indicator"></span></th>
-                <th class="sortable" data-column-id="Description" data-type="string">Description<span class="sort-indicator"></span></th>
+                <th class="sortable col-description" data-column-id="Description" data-type="string">Description<span class="sort-indicator"></span></th>
                 <th class="sortable numeric" data-column-id="On_Hand_Qty" data-type="numeric">On Hand Qty<span class="sort-indicator"></span></th>
                 <th class="sortable" data-column-id="Unit" data-type="string">Unit<span class="sort-indicator"></span></th>
                 <th class="sortable" data-column-id="BIN" data-type="string">Bin<span class="sort-indicator"></span></th>
@@ -133,6 +153,7 @@
                 <th class="sortable date" data-column-id="Exp_Date" data-type="date">Exp Date<span class="sort-indicator"></span></th>
                 <th class="sortable" data-column-id="Reference" data-type="string">Reference<span class="sort-indicator"></span></th>
                 <th class="sortable" data-column-id="PO" data-type="string">PO<span class="sort-indicator"></span></th>
+                <th class="sortable" data-column-id="Status" data-type="string">Status<span class="sort-indicator"></span></th>
                 <th class="sortable date" data-column-id="Last_Rec_Date" data-type="date">Last Rec Date<span class="sort-indicator"></span></th>
                 <th class="sortable date" data-column-id="Last_Transaction_Date" data-type="date">Last Tran Date<span class="sort-indicator"></span></th>
                 {# Hidden Customer Part for potential future use or filtering #}
@@ -144,7 +165,7 @@
                 {% for item in inventory_data %}
                 <tr>
                     <td>{{ item.Part }}</td>
-                    <td>{{ item.Description }}</td>
+                    <td class="col-description">{{ item.Description }}</td>
                     <td class="numeric">{{ "{:,.2f}".format(item.On_Hand_Qty | float) }}</td>
                     <td>{{ item.Unit }}</td>
                     <td>{{ item.BIN }}</td>
@@ -152,15 +173,16 @@
                     <td class="date">{{ item.Exp_Date }}</td>
                     <td>{{ item.Reference }}</td>
                     <td>{{ item.PO }}</td>
+                    <td>{{ item.Status }}</td>
                     <td class="date">{{ item.Last_Rec_Date }}</td>
                     <td class="date">{{ item.Last_Transaction_Date }}</td>
                     <td style="display:none;">{{ item.Customer_Part }}</td> {# Hidden #}
                 </tr>
                 {% endfor %}
             {% elif error_message %}
-                <tr><td colspan="11" style="text-align: center; color: var(--accent-red); padding: 20px;">{{ error_message }}</td></tr>
+                <tr><td colspan="12" style="text-align: center; color: var(--accent-red); padding: 20px;">{{ error_message }}</td></tr>
             {% else %}
-                <tr><td colspan="11" style="text-align: center; color: var(--text-tertiary); padding: 20px;">No inventory data found for your account.</td></tr>
+                <tr><td colspan="12" style="text-align: center; color: var(--text-tertiary); padding: 20px;">No inventory data found for your account.</td></tr>
             {% endif %}
         </tbody>
     </table>

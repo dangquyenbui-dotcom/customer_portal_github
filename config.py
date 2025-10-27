@@ -18,6 +18,10 @@ class Config:
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-key-change-in-production')
     SESSION_HOURS = int(os.getenv('SESSION_HOURS', '8'))
     PERMANENT_SESSION_LIFETIME = timedelta(hours=SESSION_HOURS)
+    
+    # === NEW: Add TEST_MODE for AD auth debugging ===
+    TEST_MODE = os.getenv('TEST_MODE', 'False').lower() == 'true'
+    # === END NEW ===
 
     # --- Customer Portal Database (Local SQL Server) ---
     DB_SERVER = os.getenv('DB_SERVER')
@@ -42,11 +46,20 @@ class Config:
     SMTP_USERNAME = os.getenv('SMTP_USERNAME')
     SMTP_PASSWORD = os.getenv('SMTP_PASSWORD')
     EMAIL_FROM = os.getenv('EMAIL_FROM')
-    # === NEW: Read BCC Address ===
-    EMAIL_BCC = os.getenv('EMAIL_BCC') # Read the new variable (can be None)
+    EMAIL_BCC = os.getenv('EMAIL_BCC')
 
+    # --- Local Admin User ---
     ADMIN_USERNAME = os.getenv('ADMIN_USERNAME', 'cp_admin')
     ADMIN_PASSWORD_HASH = os.getenv('ADMIN_PASSWORD_HASH')
+
+    # === Active Directory Admin Settings ===
+    AD_SERVER = os.getenv('AD_SERVER')
+    AD_DOMAIN = os.getenv('AD_DOMAIN')
+    AD_PORT = int(os.getenv('AD_PORT', '389'))
+    AD_SERVICE_ACCOUNT = os.getenv('AD_SERVICE_ACCOUNT')
+    AD_SERVICE_PASSWORD = os.getenv('AD_SERVICE_PASSWORD')
+    AD_BASE_DN = os.getenv('AD_BASE_DN')
+    AD_PORTAL_ADMIN_GROUP = os.getenv('AD_PORTAL_ADMIN_GROUP')
 
 
     @classmethod
@@ -70,17 +83,31 @@ class Config:
         if not cls.SMTP_USERNAME: errors.append("SMTP_USERNAME is required for password resets")
         if not cls.SMTP_PASSWORD: errors.append("SMTP_PASSWORD is required for password resets")
         if not cls.EMAIL_FROM: errors.append("EMAIL_FROM is required for password resets")
-        # === NEW: Optional check for BCC format if provided ===
-        if cls.EMAIL_BCC and '@' not in cls.EMAIL_BCC: # Basic format check
+        if cls.EMAIL_BCC and '@' not in cls.EMAIL_BCC:
              errors.append("EMAIL_BCC, if provided, must be a valid email address.")
+
+        # Validate AD Settings
+        ad_settings = [cls.AD_SERVER, cls.AD_DOMAIN, cls.AD_SERVICE_ACCOUNT, cls.AD_SERVICE_PASSWORD, cls.AD_BASE_DN, cls.AD_PORTAL_ADMIN_GROUP]
+        if any(ad_settings):
+            if not cls.AD_SERVER: errors.append("AD_SERVER is required for AD auth.")
+            if not cls.AD_DOMAIN: errors.append("AD_DOMAIN is required for AD auth.")
+            if not cls.AD_SERVICE_ACCOUNT: errors.append("AD_SERVICE_ACCOUNT is required for AD auth.")
+            if not cls.AD_SERVICE_PASSWORD: errors.append("AD_SERVICE_PASSWORD is required for AD auth.")
+            if not cls.AD_BASE_DN: errors.append("AD_BASE_DN is required for AD auth.")
+            if not cls.AD_PORTAL_ADMIN_GROUP: errors.append("AD_PORTAL_ADMIN_GROUP is required for AD auth.")
+        else:
+            print("ℹ️  AD_SERVER not found in .env, skipping Active Directory admin auth.")
 
         if errors:
             print("❌ Configuration errors:")
             for error in errors: print(f"  - {error}")
             return False
+        
+        if cls.TEST_MODE:
+            print("⚠️  [CONFIG] TEST_MODE is enabled. AD auth will be skipped.")
+            
         print("✅ Configuration loaded successfully.")
         return True
 
 # Ensure validation is called on import
 Config.validate()
-

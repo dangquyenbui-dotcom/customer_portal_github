@@ -8,12 +8,15 @@ from .customer_auth import (
     authenticate_admin,
     login_required,
     admin_required
-    # Add password reset functions later if implementing email
 )
+# === NEW IMPORT ===
+from . import ad_auth
 
 __all__ = [
     'authenticate_customer',
     'authenticate_admin',
     'login_required',
-    'admin_required'
+    'admin_required',
+    # === NEW EXPORT ===
+    'ad_auth',
 ]

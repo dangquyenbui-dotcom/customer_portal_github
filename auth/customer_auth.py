@@ -9,6 +9,7 @@ from functools import wraps
 from werkzeug.security import check_password_hash
 from database.customer_data import customer_db # Import the instance
 from config import Config
+from .ad_auth import check_ad_admin_auth
 
 # --- Customer Authentication ---
 
@@ -25,17 +26,13 @@ def login_required(f):
             session['next_url'] = request.url
             return redirect(url_for('main.login'))
         
-        # --- NEW: Force password reset check ---
         must_reset = session.get('customer', {}).get('must_reset_password', False)
         
-        # Define allowed endpoints during a forced reset
         allowed_endpoints = ('main.force_password_change', 'main.logout')
         
         if must_reset and request.endpoint not in allowed_endpoints:
-            # If they must reset and are not on an allowed page, force them
             flash('For your security, you must set a new password.', 'info')
             return redirect(url_for('main.force_password_change'))
-        # --- END NEW ---
             
         return f(*args, **kwargs)
     return decorated_function
@@ -43,16 +40,52 @@ def login_required(f):
 # --- Admin Authentication ---
 
 def authenticate_admin(username, password):
-    """Authenticates the simple admin user."""
+    """
+    Authenticates an admin user.
+    First checks the local .env admin (cp_admin).
+    If that fails, attempts to authenticate against Active Directory.
+    """
+    
+    # --- 1. Try Local Admin (from .env) ---
     if username == Config.ADMIN_USERNAME and Config.ADMIN_PASSWORD_HASH:
         if check_password_hash(Config.ADMIN_PASSWORD_HASH, password):
-            return {'username': username, 'is_admin': True}
+            print(f"✅ [Admin Auth] Local admin logged in: {username}")
+            return {'username': username, 'display_name': 'Local Admin', 'is_admin': True, 'auth_method': 'local'}
+    
+    # --- 2. Try Active Directory Admin ---
+    # Only try AD if AD_SERVER is configured (to avoid errors)
+    if Config.AD_SERVER:
+        print(f"ℹ️  [Admin Auth] Local auth failed for {username}. Trying Active Directory...")
+        
+        # === MODIFIED: Simpler, more robust trimming ===
+        ad_username = username.strip() # Start with the stripped, entered username
+        
+        # If the username contains an "@", assume it's an email and take the part before it.
+        if '@' in ad_username:
+            original_username = ad_username
+            ad_username = ad_username.split('@')[0]
+            print(f"ℹ️  [Admin Auth] Trimmed email input '{original_username}' to AD username: {ad_username}")
+        # === END MODIFIED ===
+
+        # Pass the processed 'ad_username' to the AD check
+        ad_admin_info = check_ad_admin_auth(ad_username, password) 
+        
+        if ad_admin_info:
+            print(f"✅ [Admin Auth] AD admin logged in: {ad_username}")
+            return ad_admin_info # This dict already contains 'is_admin': True
+        else:
+            # Log the reason for AD failure
+            print(f"ℹ️  [Admin Auth] AD login failed for: {ad_username}.")
+    
+    # --- 3. If both fail ---
+    print(f"❌ [Admin Auth] All auth methods failed for: {username}")
     return None
 
 def admin_required(f):
     """Decorator to ensure an admin is logged in."""
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        # This logic remains perfectly the same, as it just checks the session key
         if 'admin' not in session or not session['admin'].get('is_admin'):
             if 'customer' in session:
                  flash('You do not have permission to access the admin area.', 'error')

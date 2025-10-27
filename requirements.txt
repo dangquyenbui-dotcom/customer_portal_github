@@ -17,3 +17,6 @@ cryptography==41.0.4 # Werkzeug dependency
 
 # Excel Export
 openpyxl==3.1.2
+
+# === MODIFICATION: Replaced python-ldap with ldap3 ===
+ldap3==2.9.1

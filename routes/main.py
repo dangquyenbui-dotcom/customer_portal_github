@@ -31,6 +31,14 @@ def login():
         return redirect(url_for('inventory.view_inventory')) 
 
     if request.method == 'POST':
+        # === NEW: Honeypot Check ===
+        # This 'hp_email' field is hidden from users. If it's filled out,
+        # it's a bot. We silently fail by just re-rendering the page.
+        if request.form.get('hp_email'):
+            print("❌ [Bot] Honeypot field filled on customer login page. Bot detected.")
+            return render_template('login.html', email=request.form.get('email', ''))
+        # === END NEW ===
+
         email = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
 
@@ -120,6 +128,12 @@ def admin_login():
         return redirect(url_for('admin_panel.panel')) 
 
     if request.method == 'POST':
+        # === NEW: Honeypot Check ===
+        if request.form.get('hp_email'):
+            print("❌ [Bot] Honeypot field filled on admin login page. Bot detected.")
+            return render_template('admin_login.html', username=request.form.get('username', ''))
+        # === END NEW ===
+
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
 
@@ -135,7 +149,6 @@ def admin_login():
             print(f"🔑 Admin logged in: {username} (Method: {admin_info.get('auth_method', 'unknown')})")
             return redirect(url_for('admin_panel.panel'))
         else:
-            # === MODIFICATION: Generic message, specific error is now logged in auth module ===
             flash('Invalid admin credentials.', 'error')
             print(f"❌ Admin login failed for: {username}. See auth logs for details.")
             return render_template('admin_login.html', username=username)

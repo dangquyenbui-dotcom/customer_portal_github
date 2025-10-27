@@ -23,6 +23,7 @@
     </script>
     {# --- Use login-specific CSS adapted from Prod Portal --- #}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+    
 </head>
 <body class="loaded">
 
@@ -81,6 +82,17 @@
                        autocomplete="current-password"
                        placeholder="Enter admin password">
             </div>
+
+            {# === NEW: Honeypot Field (Invisible to users) === #}
+            <div class="form-group" style="display:none; visibility:hidden; opacity:0; position:absolute; left:-9999px;">
+                <label for="hp_email">Leave this blank</label>
+                <input type="text"
+                       id="hp_email"
+                       name="hp_email"
+                       tabindex="-1"
+                       autocomplete="off">
+            </div>
+            {# === END NEW === #}
 
             <button type="submit" class="btn-login" id="loginBtn">
                 Admin Sign In

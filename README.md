@@ -1,235 +1,288 @@
-# Customer Portal
+Customer Portal - WePackItAll
 
-## 🌟 Overview
+🌟 Overview
 
-The Customer Portal is a web application designed specifically for WePackItAll's customers. It provides a secure and convenient way for customers to view their current inventory levels held at WePackItAll facilities.
+The Customer Portal is a secure web application for WePackItAll's customers, offering real-time visibility into their inventory levels stored at WePackItAll facilities. It also provides a dedicated administration interface for managing customer access and monitoring system activity.
 
-* **Customer Inventory View:** A filterable and sortable grid displaying real-time inventory data specific to the logged-in customer.
-* **Admin Customer Management:** A separate, secure interface for WePackItAll administrators to manage customer accounts (creation, activation/deactivation, password resets).
+Customer Inventory View: Customers can log in to view a filterable, sortable grid displaying live inventory data specific to their assigned ERP customer name(s). Data is sourced directly from a read-only connection to the ERP database. Customers assigned the special "All" designation can view inventory across all ERP customers.
 
-The system connects directly to a **read-only ERP database** (Deacom Cloud via `pyodbc`) for live inventory data. Customer account information (credentials, linked ERP name) and potentially session/audit data are stored in a separate, local **SQL Server database** (`CustomerPortalDB`). Customer authentication uses email and password stored locally.
+Admin Customer Management: A secure /admin section allows WePackItAll administrators to:
 
-**Status:** Core customer login, inventory view, and admin customer management features are implemented. Password reset via email is planned but not yet implemented.
+Create, view, edit, and deactivate customer portal accounts.
 
----
+Assign one or multiple ERP customer names (or "All") to each portal account, controlling their data visibility.
 
-## 🚀 Getting Started
+Reset customer passwords, triggering an email with a temporary password and forcing the customer to set a new one upon their next login.
 
-### Prerequisites
+Audit Log: Administrators can view a detailed log of significant actions performed within the admin section (e.g., customer creation, updates, deactivation, password resets) for accountability and tracking.
 
-* Python 3.10+
-* Microsoft SQL Server (for the local `CustomerPortalDB`)
-* Read-only access to the target ERP SQL Server database (Deacom Cloud).
-* Appropriate **ODBC Drivers** installed on the server running the application (e.g., "ODBC Driver 17 for SQL Server" or similar, as specified in `.env`).
+🚀 Getting Started
 
-### Installation & Setup
+Prerequisites
 
-1.  **Clone the Repository:**
-    ```bash
-    git clone <your-repository-url>
-    cd customer_portal
-    ```
+Python 3.10+
 
-2.  **Set Up Environment Variables (`.env`):**
-    * Copy the `.env.template` file to a new file named `.env` in the project root.
-    * **Update the variables within `.env`** with your specific configuration details:
-        * `SECRET_KEY`: Generate a new, strong, random secret key.
-        * `DB_SERVER`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD` (or `DB_USE_WINDOWS_AUTH`) for the local `CustomerPortalDB`.
-        * `ERP_DB_SERVER`, `ERP_DB_NAME`, `ERP_DB_USERNAME`, `ERP_DB_PASSWORD`, `ERP_DB_PORT`, `ERP_DB_DRIVER` for the read-only ERP connection.
-        * `SMTP_*`, `EMAIL_FROM` if implementing password reset.
-        * `ADMIN_USERNAME`, `ADMIN_PASSWORD_HASH` for the portal's admin access. Generate the hash using the provided Python command.
+Microsoft SQL Server (for the local CustomerPortalDB)
 
-3.  **Create and Activate Virtual Environment:**
-    ```bash
-    # Navigate to the project root directory
-    cd path/to/customer_portal
+Read-only access to the target ERP SQL Server database (e.g., Deacom Cloud).
 
-    # Create the virtual environment (named 'venv')
-    python -m venv venv
+Appropriate ODBC Drivers installed on the server running the application (e.g., "ODBC Driver 17 for SQL Server" or similar, matching the .env configuration).
 
-    # Activate the environment
-    # Windows PowerShell:
-    .\venv\Scripts\Activate.ps1
-    # Windows CMD:
-    # .\venv\Scripts\activate.bat
-    # macOS/Linux:
-    # source venv/bin/activate
-    ```
+An SMTP server (like Office 365) for sending password reset emails.
 
-4.  **Install Dependencies:**
-    With the virtual environment activated:
-    ```bash
-    pip install -r requirements.txt
-    ```
-   
+Installation & Setup
 
-5.  **Database Initialization (`CustomerPortalDB`):**
-    * Ensure the `CustomerPortalDB` database and the `CustomerPortalUser` login/user exist on your `DB_SERVER` instance (using the provided SQL scripts or manually).
-    * Verify the `CustomerPortalUser` has permissions (`db_datareader`, `db_datawriter`, `db_ddladmin`, `CONNECT`) within that database.
-    * The application will attempt to create necessary tables (`Customers`, `PasswordResetTokens`, etc.) on its first run if they don't exist.
+Clone the Repository:
 
-6.  **Run the Application (Production):**
-    Use a production-ready WSGI server like Waitress (included in requirements). Ensure the virtual environment is active.
-    ```bash
-    waitress-serve --host=0.0.0.0 --port=5001 --call app:create_app
-    ```
-    *(Adjust host/port as needed. Ensure the server's firewall allows traffic on the specified port. Port 5001 is suggested to avoid conflict with Production Portal on 5000)*
+git clone <your-repository-url>
+cd customer_portal
 
-7.  **Access in Browser:**
-    * **Customers:** Navigate to `http://your_server_ip:5001`. They will be redirected to the login page (`/login`).
-    * **Admin:** Navigate to `http://your_server_ip:5001/admin-login` to access the admin section.
 
----
+Set Up Environment Variables (.env):
 
-## 🛠️ Core Features
+Copy .env.template to a new file named .env in the project root.
 
-### Customer View
+Crucially, update .env with your specific configuration:
 
-* **Login:** Customers log in using their registered email address and password.
-* **Inventory Dashboard (`/inventory`):**
-    * Displays a grid of inventory items belonging *only* to the logged-in customer. Data is fetched live from the ERP.
-    * Features filtering (by Part, Bin, text search) and sorting capabilities.
-    * Allows exporting the currently visible data to an Excel (.xlsx) file.
+SECRET_KEY: Generate a strong, random key.
 
-### Admin View (`/admin`)
+DB_*: Connection details for the local CustomerPortalDB.
 
-* **Login (`/admin-login`):** Separate login for administrators using credentials defined in `.env`.
-* **Dashboard (`/admin`):** Central navigation for admin functions.
-* **Customer Management (`/admin/customers`):**
-    * View list of customers with filtering and search.
-    * Add new customer accounts, linking them to their specific ERP Customer Name.
-    * Edit customer details (name, email, ERP name) and optionally reset passwords.
-    * Activate or deactivate customer accounts.
+ERP_*: Connection details for the read-only ERP database.
 
----
+SMTP_*, EMAIL_FROM, EMAIL_BCC: Credentials and settings for your email server (e.g., Office 365). The EMAIL_BCC is optional but recommended for tracking.
 
-## 💻 Technology Stack
+ADMIN_USERNAME, ADMIN_PASSWORD_HASH: Credentials for the portal's admin access. Generate the hash using the command provided in .env.template or hash_admin.py.
 
-* **Backend**: Python 3, Flask
-* **WSGI Server**: Waitress
-* **Database ORM/Driver**: `pyodbc` for both local SQL Server and ERP SQL Server connections
-* **Frontend**: Jinja2 Templating, HTML, CSS, Vanilla JavaScript
-* **Excel Export**: `openpyxl`
-* **Environment Variables**: `python-dotenv`
-* **Password Hashing:** `Werkzeug`
+APP_BASE_URL (Optional): Set this to the public URL of the portal (e.g., http://portal.yourcompany.com) if email links need to point to something other than http://localhost:5001.
 
----
+Create and Activate Virtual Environment:
 
-## 🏗️ Architecture
+# Navigate to the project root directory
+python -m venv venv
 
-* **Flask Application Factory:** Uses `create_app()` pattern in `app.py`.
-* **Blueprints:** Modular structure using Flask Blueprints for different sections (main, inventory, admin).
-* **Database Layer:**
-    * Separate connection handlers for local `CustomerPortalDB` (`database/connection.py`) and read-only ERP (`database/erp_connection_base.py`).
-    * Service layer (`database/erp_service.py`) acts as a facade for ERP queries.
-    * Dedicated module (`database/customer_data.py`) for local `Customers` table operations.
-* **Authentication:** Handled in the `auth` package, interacting with the local `Customers` table or checking admin credentials. Route protection via decorators (`@login_required`, `@admin_required`).
-* **Frontend:** Server-side rendering with Jinja2; client-side interactions via Vanilla JavaScript for filtering, sorting, and exporting.
+# Activate (example for Windows PowerShell):
+.\venv\Scripts\Activate.ps1
+# (Use appropriate activation command for your OS/shell)
 
----
 
-## 📁 Project Structure
+Install Dependencies:
 
-````
+pip install -r requirements.txt
 
-/customer\_portal/
+
+Database Initialization (CustomerPortalDB):
+
+Ensure the CustomerPortalDB database and the specified login/user exist on your DB_SERVER.
+
+Grant the user necessary permissions (e.g., db_datareader, db_datawriter, db_ddladmin, CONNECT).
+
+The application will automatically create the required tables (Customers, AuditLog, PasswordResetTokens) on its first run if they don't exist. It will also add new columns (like must_reset_password) if needed.
+
+Run the Application (Production):
+Use a production-ready WSGI server like Waitress. Ensure the virtual environment is active.
+
+waitress-serve --host=0.0.0.0 --port=5001 --call app:create_app
+
+
+(Adjust host/port. Ensure firewalls allow traffic. Port 5001 avoids conflict with Production Portal on 5000)
+
+Access in Browser:
+
+Customers: http://your_server_ip:5001 (redirects to /login)
+
+Admin: http://your_server_ip:5001/admin-login
+
+🛠️ Core Features
+
+Customer View
+
+Login: Secure login using email and password.
+
+Forced Password Change: If an admin resets their password, the customer is required to set a new one immediately after logging in with the temporary password.
+
+Inventory Dashboard (/inventory):
+
+Displays inventory items linked to the customer's assigned ERP name(s) or all items if assigned "All". Data fetched live from ERP.
+
+Features filtering (Part, Bin, text search) and sorting.
+
+Export visible data to Excel (.xlsx).
+
+Admin View (/admin)
+
+Login (/admin-login): Separate, secure login using credentials from .env.
+
+Dashboard (/admin): Central navigation for admin functions.
+
+Customer Management (/admin/customers):
+
+View, filter, and search customer accounts.
+
+Add new customers, assigning one or multiple ERP names using checkboxes, or the special "All" designation.
+
+Edit customer details (name, email, ERP assignments, active status).
+
+Activate/Deactivate accounts.
+
+Admin Password Reset: Trigger an email to the customer containing a secure, temporary password, forcing them to change it on their next login.
+
+Audit Log (/admin/audit):
+
+View a chronological log of actions performed by administrators (customer creation, updates, status changes, password resets).
+
+Filter logs by administrator, action type, or target customer (ID/email).
+
+💻 Technology Stack
+
+Backend: Python 3, Flask
+
+WSGI Server: Waitress
+
+Database: Microsoft SQL Server (for local data), Read-Only connection to ERP SQL Server
+
+Database Driver: pyodbc
+
+Frontend: Jinja2 Templating, HTML, CSS, Vanilla JavaScript
+
+Email: smtplib, ssl
+
+Excel Export: openpyxl
+
+Environment Variables: python-dotenv
+
+Password Hashing: Werkzeug
+
+🏗️ Architecture
+
+Flask Application Factory: (app.py) Uses create_app() pattern.
+
+Blueprints: Modular structure (routes/): main, inventory, admin (panel, customers, audit).
+
+Database Layer: (database/)
+
+Connection managers for local DB (connection.py) and ERP (erp_connection_base.py).
+
+Service layer facade for ERP queries (erp_service.py).
+
+Modules for local table operations: customer_data.py, audit_log.py.
+
+Authentication: (auth/) Handles customer/admin login logic and route protection decorators (@login_required, @admin_required), including the forced password reset check.
+
+Utilities: (utils/) Includes helpers (helpers.py), input validators (validators.py), and email sending logic (email_service.py).
+
+Frontend: Server-side rendering (Jinja2); client-side interactions (Vanilla JS).
+
+📁 Project Structure
+
+/customer_portal/
 │
-├── app.py                  \# Flask application factory & runner
-├── config.py               \# Configuration loader (reads .env)
-├── requirements.txt        \# Python dependencies
-├── .env                    \# Local environment variables (GITIGNORED)
-├── .env.template           \# Template for .env file
-├── README.md               \# This file
+├── app.py                  # Flask application factory & runner
+├── config.py               # Configuration loader (reads .env)
+├── requirements.txt        # Python dependencies
+├── .env                    # Local environment variables (GITIGNORED)
+├── .env.template           # Template for .env file
+├── README.md               # This file
 │
-├── /auth/                  \# Authentication & Authorization
-│   ├── **init**.py
-│   └── customer\_auth.py    \# Customer & Admin login/auth logic, decorators
+├── /auth/                  # Authentication & Authorization
+│   ├── __init__.py
+│   └── customer_auth.py    # Login logic, decorators, force reset check
 │
-├── /database/              \# Data access layer
-│   ├── **init**.py         \# Exports DB instances & service getters
-│   ├── connection.py       \# Local DB (CustomerPortalDB) connection
-│   ├── erp\_connection\_base.py \# Base ERP DB connection (pyodbc)
-│   ├── erp\_service.py      \# Facade for ERP queries
-│   ├── customer\_data.py    \# Local Customer & Password Reset DB operations
-│   ├── sessions.py         \# (Optional - Reuse from Prod Portal)
-│   ├── audit.py            \# (Optional - Reuse from Prod Portal)
-│   └── /erp\_queries/       \# Specific SQL queries for ERP
-│       ├── **init**.py
-│       └── inventory\_queries.py \# Customer-specific inventory query
+├── /database/              # Data access layer
+│   ├── __init__.py         # Exports DB instances & service getters
+│   ├── connection.py       # Local DB (CustomerPortalDB) connection
+│   ├── customer_data.py    # Local Customer DB operations (CRUD, PW handling)
+│   ├── audit_log.py        # Local AuditLog DB operations
+│   ├── erp_connection_base.py # Base ERP DB connection (pyodbc)
+│   ├── erp_service.py      # Facade for ERP queries
+│   └── /erp_queries/       # Specific SQL queries for ERP
+│       ├── __init__.py
+│       └── inventory_queries.py # Customer-specific inventory query (handles 'All')
 │
-├── /routes/                \# Flask blueprints (controllers)
-│   ├── **init**.py
-│   ├── main.py             \# Core routes (login, logout, admin-login)
-│   ├── inventory.py        \# Customer inventory view routes
-│   └── /admin/             \# Admin panel blueprints
-│       ├── **init**.py
-│       ├── panel.py        \# Admin dashboard route
-│       └── customers.py      \# Customer CRUD routes
+├── /routes/                # Flask blueprints (controllers)
+│   ├── __init__.py
+│   ├── main.py             # Core routes (login, logout, force reset)
+│   ├── inventory.py        # Customer inventory view routes
+│   └── /admin/             # Admin panel blueprints
+│       ├── __init__.py
+│       ├── panel.py        # Admin dashboard route
+│       ├── customers.py      # Customer CRUD & admin reset routes
+│       └── audit.py          # Audit log view route
 │
-├── /static/                \# Frontend assets (CSS, JS, Images)
-│   ├── /css/               \# base.css, admin.css, login.css
-│   ├── /js/                \# theme.js, common.js, inventory.js
-│   └── /img/               \# Logo images
+├── /static/                # Frontend assets (CSS, JS, Images)
+│   ├── /css/               # base.css, admin.css, login.css
+│   ├── /js/                # theme.js, common.js, inventory.js
+│   └── /img/               # Logo images
 │
-├── /templates/             \# Jinja2 HTML templates
+├── /templates/             # Jinja2 HTML templates
 │   ├── base.html
 │   ├── login.html
-│   ├── admin\_login.html
-│   ├── inventory\_view.html
+│   ├── admin_login.html
+│   ├── inventory_view.html
+│   ├── force_change_password.html # New page for forced reset
 │   ├── /admin/
 │   │   ├── panel.html
-│   │   └── customer\_management.html
-│   └── /components/        \# (Empty for now - Reuse from Prod Portal if needed)
+│   │   ├── customer_management.html
+│   │   └── audit_log.html    # New page for viewing audit logs
+│   └── /email/
+│       └── password_reset.html # New email template
 │
-└── /utils/                 \# Helper utilities
-├── **init**.py
-├── helpers.py          \# General utilities (client info, formatting)
-└── validators.py       \# Input validation (email, password)
+└── /utils/                 # Helper utilities
+    ├── __init__.py
+    ├── helpers.py          # General utilities
+    ├── validators.py       # Input validation (email, password)
+    └── email_service.py    # Email sending logic
 
-````
 
----
+⚙️ Configuration (.env)
 
-## ⚙️ Configuration (`.env`)
+Key settings managed via the .env file:
 
-Key settings managed via the `.env` file:
+SECRET_KEY: Must be set to a unique, random string.
 
-* `SECRET_KEY`: **Must be set to a unique, random string for security.**
-* `SESSION_HOURS`: Duration for user sessions.
-* `DB_*`: Connection details for the local `CustomerPortalDB` SQL Server.
-* `ERP_*`: Connection details for the read-only ERP SQL Server.
-* `SMTP_*`, `EMAIL_FROM`: Required for password reset functionality.
-* `ADMIN_USERNAME`, `ADMIN_PASSWORD_HASH`: Credentials for the portal administrator.
+SESSION_HOURS: Duration for user sessions.
 
----
+DB_*: Connection details for the local CustomerPortalDB.
 
-## 🏭 Running for Production
+ERP_*: Connection details for the read-only ERP database.
 
-* **WSGI Server:** Use Waitress (or Gunicorn/uWSGI). **Do not use `flask run` or `python app.py` with `debug=True`**.
-    ```bash
-    waitress-serve --host=0.0.0.0 --port=5001 --call app:create_app
-    ```
-* **Configuration:** Ensure a strong `SECRET_KEY` is set in `.env`. Verify all DB/ERP settings point to production resources.
-* **HTTPS:** Strongly recommended. Set up a reverse proxy (Nginx, Apache, IIS) to handle SSL termination.
-* **Logging:** Configure proper file-based logging for monitoring (Flask's built-in logging or a library like `logging`).
-* **Virtual Environment:** Always run within the activated project virtual environment.
+SMTP_*, EMAIL_FROM, EMAIL_BCC: Required for the admin password reset feature.
 
----
+ADMIN_USERNAME, ADMIN_PASSWORD_HASH: Credentials for the portal administrator.
 
-## 📄 License
+APP_BASE_URL (Optional): Public URL for email links.
 
-(Specify your project's license here, e.g., MIT, GPL, Proprietary)
+🏭 Running for Production
 
----
+WSGI Server: Use Waitress (or Gunicorn/uWSGI). Do not use flask run or python app.py with debug=True.
 
-## 🙏 Acknowledgements
+waitress-serve --host=0.0.0.0 --port=5001 --call app:create_app
 
-* Flask
-* Waitress
-* pyodbc
-* Werkzeug
-* openpyxl
-* python-dotenv
 
----
-````
+Configuration: Ensure a strong SECRET_KEY and correct production database/email settings are in .env.
+
+HTTPS: Strongly recommended via a reverse proxy (Nginx, Apache, IIS).
+
+Logging: Configure proper file-based logging in Flask for monitoring.
+
+Virtual Environment: Always run within the activated project virtual environment.
+
+📄 License
+
+(Specify your project's license here)
+
+🙏 Acknowledgements
+
+Flask
+
+Waitress
+
+pyodbc
+
+Werkzeug
+
+openpyxl
+
+python-dotenv
+
+Jinja2

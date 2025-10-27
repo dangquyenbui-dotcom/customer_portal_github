@@ -8,7 +8,7 @@ from database.customer_data import customer_db
 from database.audit_log import audit_db # --- NEW IMPORT ---
 from database import get_erp_service
 from utils.validators import validate_email, validate_password
-from utils.email_service import send_password_reset_email
+from utils.email_service import send_password_reset_email, send_welcome_email # --- MODIFIED IMPORT ---
 import secrets
 
 admin_customers_bp = Blueprint('admin_customers', __name__)
@@ -66,7 +66,8 @@ def add_customer():
     first_name = request.form.get('first_name', '').strip()
     last_name = request.form.get('last_name', '').strip()
     email = request.form.get('email', '').strip().lower()
-    password = request.form.get('password', '')
+    # === MODIFICATION: Password is no longer from form ===
+    # password = request.form.get('password', '') 
 
     erp_customer_names_list = request.form.getlist('erp_customer_name')
     if not erp_customer_names_list:
@@ -80,21 +81,26 @@ def add_customer():
         flash(f"Error adding customer: {email_error}", 'error')
         return redirect(url_for('admin_customers.manage_customers'))
 
-    is_valid_password, password_error = validate_password(password)
-    if not is_valid_password:
-        flash(f"Error adding customer: {password_error}", 'error')
-        return redirect(url_for('admin_customers.manage_customers'))
+    # === MODIFICATION: Removed password validation ===
+    # is_valid_password, password_error = validate_password(password)
+    # if not is_valid_password:
+    #     flash(f"Error adding customer: {password_error}", 'error')
+    #     return redirect(url_for('admin_customers.manage_customers'))
 
     if not first_name or not last_name:
          flash("Error adding customer: First Name and Last Name are required.", 'error')
          return redirect(url_for('admin_customers.manage_customers'))
 
+    # === NEW: Generate temporary password ===
+    temp_password = secrets.token_urlsafe(10)
+    # === END NEW ===
+
     # Attempt to create customer
     success, message = customer_db.create_customer(
-        first_name, last_name, email, password, erp_customer_name
+        first_name, last_name, email, temp_password, erp_customer_name
     )
 
-    # --- NEW: Audit Logging ---
+    # --- MODIFIED: Audit Logging and Email Sending ---
     if success:
         # Fetch the newly created customer to get the ID for logging
         new_customer = customer_db.get_customer_by_email(email)
@@ -104,9 +110,27 @@ def add_customer():
             target_customer_email=email,
             details=f"Created customer {first_name} {last_name} with ERP names: '{erp_customer_name}'"
         )
-    # --- END NEW ---
-
-    flash(message, 'success' if success else 'error')
+        
+        # --- NEW: Send Welcome Email ---
+        email_success, email_message = send_welcome_email(
+            to_email=email,
+            first_name=first_name,
+            temp_password=temp_password
+        )
+        
+        if email_success:
+            flash(f"{message} Welcome email sent to {email}.", 'success')
+        else:
+            # CRITICAL: If email fails, inform admin of the password
+            flash(f"Customer created, but welcome email failed: {email_message}. " +
+                  f"Please manually provide this password to the user: {temp_password}", 'warning')
+        # --- END NEW ---
+    
+    else:
+        # Creation failed
+        flash(message, 'error')
+    # --- END MODIFICATION ---
+    
     return redirect(url_for('admin_customers.manage_customers'))
 
 @admin_customers_bp.route('/customers/edit/<int:customer_id>', methods=['POST'])
@@ -271,4 +295,3 @@ def admin_reset_password(customer_id):
         'success': True,
         'message': f"Password reset email successfully sent to {customer['email']}."
     })
-

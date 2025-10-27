@@ -145,14 +145,11 @@
                             ✏️ Edit
                         </button>
                         
-                        <!-- === NEW: Reset Password Button === -->
                         <button class="btn btn-info btn-sm"
                                 id="reset-btn-{{ customer.customer_id }}"
                                 onclick="triggerAdminReset({{ customer.customer_id }}, '{{ customer.first_name }} {{ customer.last_name }}', this)">
                             🔑 Reset PW
                         </button>
-                        <!-- === END NEW === -->
-                        
                         {% if customer.is_active %}
                         <button class="btn btn-secondary btn-sm"
                                 onclick="deactivateCustomer({{ customer.customer_id }}, '{{ customer.first_name }} {{ customer.last_name }}')">
@@ -199,11 +196,6 @@
                 <label for="email">Email Address *</label>
                 <input type="email" id="email" name="email" class="form-control" required autocomplete="off">
             </div>
-            <div class="form-group">
-                <label for="password">Password *</label>
-                <input type="password" id="password" name="password" class="form-control" required autocomplete="new-password">
-                <small>Minimum 8 characters. User will be forced to change this on first login.</small>
-            </div>
             
             <div class="form-group">
                 <label for="erp_customer_name_add">ERP Customer Name(s) *</label>
@@ -225,7 +217,7 @@
             
             <div class="modal-actions">
                 <button type="button" class="btn btn-secondary" onclick="dtUtils.closeModal('addModal')">Cancel</button>
-                <button type="submit" class="btn btn-primary">Add Customer</button>
+                <button type="submit" class="btn btn-primary">Add Customer & Send Welcome Email</button>
             </div>
         </form>
     </div>

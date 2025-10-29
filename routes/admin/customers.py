@@ -87,9 +87,11 @@ def add_customer():
     #     flash(f"Error adding customer: {password_error}", 'error')
     #     return redirect(url_for('admin_customers.manage_customers'))
 
-    if not first_name or not last_name:
-         flash("Error adding customer: First Name and Last Name are required.", 'error')
+    # === MODIFICATION: Removed last_name from required check ===
+    if not first_name or not email:
+         flash("Error adding customer: First Name and Email are required.", 'error')
          return redirect(url_for('admin_customers.manage_customers'))
+    # === END MODIFICATION ===
 
     # === NEW: Generate temporary password ===
     temp_password = secrets.token_urlsafe(10)
@@ -159,8 +161,10 @@ def edit_customer(customer_id):
     if not is_valid_email:
         return jsonify({'success': False, 'message': email_error})
 
-    if not first_name or not last_name:
-         return jsonify({'success': False, 'message': 'First Name and Last Name are required.'})
+    # === MODIFICATION: Removed last_name from required check ===
+    if not first_name or not email:
+         return jsonify({'success': False, 'message': 'First Name and Email are required.'})
+    # === END MODIFICATION ===
 
     # Attempt to update customer profile
     success, message = customer_db.update_customer(

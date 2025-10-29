@@ -113,6 +113,8 @@ def register_blueprints(app):
         from routes.admin.customers import admin_customers_bp
         from routes.admin.audit import admin_audit_bp
         from routes.admin.sessions import admin_sessions_bp
+        # === NEW IMPORT ===
+        from routes.admin.analytics import admin_analytics_bp
 
         app.register_blueprint(main_bp)
         app.register_blueprint(inventory_bp, url_prefix='/inventory')
@@ -121,6 +123,8 @@ def register_blueprints(app):
         app.register_blueprint(admin_customers_bp, url_prefix='/admin')
         app.register_blueprint(admin_audit_bp, url_prefix='/admin')
         app.register_blueprint(admin_sessions_bp, url_prefix='/admin')
+        # === NEW REGISTRATION ===
+        app.register_blueprint(admin_analytics_bp, url_prefix='/admin')
 
         print("✅ Blueprints registered.")
     except ImportError as e:
@@ -140,8 +144,9 @@ def initialize_database_connections():
         local_db = get_db()
         if local_db.test_connection():
             print("✅ Local DB (CustomerPortalDB): Connected")
-            from database import customer_db, audit_db, session_db
-            print("✅ Local DB Tables (Customers, AuditLog, ActiveSessions) Checked/Created.")
+            # === MODIFIED: Added analytics_db ===
+            from database import customer_db, audit_db, session_db, analytics_db
+            print("✅ Local DB Tables (Customers, AuditLog, ActiveSessions, Analytics) Checked/Created.")
         else:
             print("❌ Local DB (CustomerPortalDB): Connection FAILED")
             all_ok = False

@@ -10,6 +10,7 @@
     <a href="{{ url_for('admin_customers.manage_customers') }}">Manage Customers</a>
     <a href="{{ url_for('admin_audit.view_audit_log') }}">Audit Log</a>
     <a href="{{ url_for('admin_sessions.view_sessions') }}">Active Sessions</a>
+    <a href="{{ url_for('admin_analytics.view_analytics') }}">Usage Analytics</a>
     <a href="{{ url_for('main.admin_logout') }}">Admin Logout</a>
 {% endblock %}
 
@@ -43,12 +44,13 @@
         <div class="admin-title">Active Sessions</div>
         <div class="admin-desc">View and manage active customer sessions.</div>
     </a>
-    <a href="#" class="admin-card disabled">
+    
+    <a href="{{ url_for('admin_analytics.view_analytics') }}" class="admin-card">
         <div class="admin-icon">📊</div>
-        <div class="admin-title">Usage Analytics (Future)</div>
+        <div class="admin-title">Usage Analytics</div>
         <div class="admin-desc">View customer login and activity statistics.</div>
     </a>
-</div>
+    </div>
 {% endblock %}
 
 {% block scripts %}

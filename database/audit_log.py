@@ -39,9 +39,18 @@ class AuditLogDB:
             else:
                 print("❌ Failed to create AuditLog table.")
 
-    def log_event(self, action_type, target_customer_id=None, target_customer_email=None, details=None):
+    # === MODIFICATION: Added 'admin_username' parameter and context handling ===
+    def log_event(self, action_type, target_customer_id=None, target_customer_email=None, details=None, admin_username=None):
         """Logs an audit event."""
-        admin_username = session.get('admin', {}).get('username', 'SYSTEM') # Get admin from session
+        
+        if admin_username is None:
+            try:
+                # Try to get admin from session if in a request context
+                admin_username = session.get('admin', {}).get('username', 'SYSTEM')
+            except RuntimeError:
+                # We are outside a request context (e.g., in a script)
+                admin_username = 'SYSTEM'
+        # === END MODIFICATION ===
 
         # Ensure details are stored appropriately (simple string or JSON string)
         if isinstance(details, (dict, list)):

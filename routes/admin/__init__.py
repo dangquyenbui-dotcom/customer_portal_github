@@ -8,6 +8,8 @@ from .customers import admin_customers_bp
 from .audit import admin_audit_bp
 # === NEW IMPORT ===
 from .sessions import admin_sessions_bp
+# === NEW IMPORT ===
+from .analytics import admin_analytics_bp
 
 __all__ = [
     'admin_panel_bp',
@@ -15,4 +17,6 @@ __all__ = [
     'admin_audit_bp',
     # === NEW EXPORT ===
     'admin_sessions_bp',
+    # === NEW EXPORT ===
+    'admin_analytics_bp',
 ]

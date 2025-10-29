@@ -89,15 +89,17 @@ class CustomerDataDB:
             else:
                  print("❌ Failed to create PasswordResetTokens table.")
 
-    def create_customer(self, first_name, last_name, email, password, erp_customer_name):
+    def create_customer(self, first_name, last_name, email, password, erp_customer_name=""):
         """
         Creates a new customer record.
-        erp_customer_name is now expected to be a '|' delimited string or 'All'.
+        erp_customer_name is now optional and defaults to an empty string.
         """
         email = email.lower().strip()
-        erp_customer_name = erp_customer_name.strip()
-        if not all([first_name, last_name, email, password, erp_customer_name]):
-             return False, "All fields are required."
+        
+        # === MODIFICATION: Removed last_name from this check ===
+        if not all([first_name, email, password]):
+             return False, "First name, email, and password are required."
+        # === END MODIFICATION ===
 
         if self.get_customer_by_email(email):
             return False, "Email address already exists."
@@ -108,7 +110,7 @@ class CustomerDataDB:
                 first_name, last_name, email, password_hash, erp_customer_name, 
                 is_active, must_reset_password
             )
-            VALUES (?, ?, ?, ?, ?, 1, 1) -- === MODIFICATION: Force reset on create ===
+            VALUES (?, ?, ?, ?, ?, 1, 1) -- Force reset on create
         """
         params = (first_name, last_name, email, password_hash, erp_customer_name)
         success = self.db.execute_query(query, params)
@@ -122,7 +124,7 @@ class CustomerDataDB:
         return results[0] if results else None
 
     def get_customer_by_id(self, customer_id):
-        """Retrieves a customer by their ID."""
+        """RetrieVes a customer by their ID."""
         query = "SELECT * FROM Customers WHERE customer_id = ?"
         results = self.db.execute_query(query, (customer_id,))
         return results[0] if results else None
@@ -272,4 +274,3 @@ class CustomerDataDB:
 
 # Singleton instance
 customer_db = CustomerDataDB()
-

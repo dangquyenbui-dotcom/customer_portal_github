@@ -43,8 +43,8 @@
         <div class="logo">
              {# --- WPIA Logos --- #}
             <a href="{{ url_for('main.login') }}">
-                <img src="{{ url_for('static', filename='img/wepackitall-logo-final-rgb-web.jpg') }}" alt="WePackItAll Logo" class="logo-light" style="height: 45px;">
-                <img src="{{ url_for('static', filename='img/wepackitall-logo-final-rgb-reversed-web.png') }}" alt="WePackItAll Logo" class="logo-dark" style="height: 45px;">
+                <img src="{{ url_for('static', filename='img/wepackitall-logo-final-rgb-web.jpg') }}" alt="WePackItAll Logo" class="logo-light" style="height: 90px;">
+                <img src="{{ url_for('static', filename='img/wepackitall-logo-final-rgb-reversed-web.png') }}" alt="WePackItAll Logo" class="logo-dark" style="height: 90px;">
             </a>
             <p>Customer Portal - Admin Access</p>
         </div>
@@ -100,10 +100,9 @@
         </form>
 
          <div class="help-text">
-            Use the admin credentials configured in the .env file. <br>
              <a href="{{ url_for('main.login') }}" style="color: var(--text-tertiary);">Back to Customer Login</a>
         </div>
-    </div>
+         </div>
 
     {# --- Reusable JS --- #}
     <script src="{{ url_for('static', filename='js/theme.js') }}"></script>

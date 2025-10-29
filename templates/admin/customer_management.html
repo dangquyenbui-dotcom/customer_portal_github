@@ -9,6 +9,7 @@
     <a href="{{ url_for('admin_panel.panel') }}">Admin Dashboard</a>
     <a href="{{ url_for('admin_audit.view_audit_log') }}">Audit Log</a>
     <a href="{{ url_for('admin_sessions.view_sessions') }}">Active Sessions</a>
+    <a href="{{ url_for('admin_analytics.view_analytics') }}">Usage Analytics</a>
     <a href="{{ url_for('main.admin_logout') }}">Admin Logout</a>
 {% endblock %}
 
@@ -188,8 +189,8 @@
                     <input type="text" id="first_name" name="first_name" class="form-control" required>
                 </div>
                 <div class="form-group">
-                    <label for="last_name">Last Name *</label>
-                    <input type="text" id="last_name" name="last_name" class="form-control" required>
+                    <label for="last_name">Last Name</label>
+                    <input type="text" id="last_name" name="last_name" class="form-control">
                 </div>
             </div>
              <div class="form-group">
@@ -235,8 +236,8 @@
                     <input type="text" id="edit_first_name" name="edit_first_name" class="form-control" required>
                 </div>
                 <div class="form-group">
-                    <label for="edit_last_name">Last Name *</label>
-                    <input type="text" id="edit_last_name" name="edit_last_name" class="form-control" required>
+                    <label for="edit_last_name">Last Name</label>
+                    <input type="text" id="edit_last_name" name="edit_last_name" class="form-control">
                 </div>
             </div>
              <div class="form-group">

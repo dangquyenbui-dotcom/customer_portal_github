@@ -11,6 +11,8 @@ from .customer_data import CustomerDataDB, customer_db
 from .audit_log import AuditLogDB, audit_db
 # === NEW IMPORT ===
 from .session_store import SessionStoreDB, session_db
+# === NEW IMPORT ===
+from .analytics_db import AnalyticsDB, analytics_db
 
 __all__ = [
     # Connection helpers
@@ -30,4 +32,7 @@ __all__ = [
     # === NEW EXPORT ===
     'SessionStoreDB',
     'session_db',
+    # === NEW EXPORT ===
+    'AnalyticsDB',
+    'analytics_db',
 ]

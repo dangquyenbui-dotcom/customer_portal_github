@@ -81,6 +81,11 @@
         background: var(--btn-info-hover);
     }
     
+    /* === NEW: Style for ERP search bar (to override form-group margin) === */
+    .erp-search-bar {
+        margin-bottom: 5px;
+    }
+    
     /* === NEW: Added Grid Footer Style === */
     .grid-footer { 
         padding: 10px; text-align: right; font-size: 14px; 
@@ -212,6 +217,11 @@
             
             <div class="form-group">
                 <label for="erp_customer_name_add">ERP Customer Name(s) *</label>
+                
+                <div class="form-group erp-search-bar">
+                    <input type="text" id="erp_search_add" class="form-control" placeholder="Search customer names...">
+                </div>
+                
                 <div id="erp_customer_name_add" class="checkbox-container">
                     <label>
                         <input type="checkbox" name="erp_customer_name" value="All" class="erp-checkbox-add" onchange="handleAllCheck(this, 'add')">
@@ -219,7 +229,7 @@
                     </label>
                     <hr>
                     {% for name in erp_customer_names %}
-                    <label>
+                    <label data-name="{{ name | lower }}">
                         <input type="checkbox" name="erp_customer_name" value="{{ name }}" class="erp-checkbox-add" onchange="handleCustomerCheck(this, 'add')">
                         {{ name }}
                     </label>
@@ -259,6 +269,11 @@
             
              <div class="form-group">
                 <label for="erp_customer_name_edit">ERP Customer Name(s) *</label>
+                
+                <div class="form-group erp-search-bar">
+                    <input type="text" id="erp_search_edit" class="form-control" placeholder="Search customer names...">
+                </div>
+                
                 <div id="erp_customer_name_edit" class="checkbox-container">
                     <label>
                         <input type="checkbox" name="edit_erp_customer_name" value="All" class="erp-checkbox-edit" onchange="handleAllCheck(this, 'edit')">
@@ -266,7 +281,7 @@
                     </label>
                     <hr>
                     {% for name in erp_customer_names %}
-                    <label>
+                     <label data-name="{{ name | lower }}">
                         <input type="checkbox" name="edit_erp_customer_name" value="{{ name }}" class="erp-checkbox-edit" onchange="handleCustomerCheck(this, 'edit')">
                         {{ name }}
                     </label>
@@ -296,7 +311,7 @@
 
 {% block scripts %}
 <script>
-    // --- NEW: Client-side filtering and summary updates ---
+    // --- Client-side filtering and summary updates ---
     
     // Total number of customers matching the STATUS filter (from server)
     const serverVisibleCount = {{ visible_customer_count }};
@@ -337,6 +352,29 @@
         }
     }
 
+    // --- NEW: Function to filter ERP customer list in modals ---
+    /**
+     * Filters the ERP customer checkbox list in a modal based on search input.
+     * @param {string} modalType - Either 'add' or 'edit'.
+     */
+    function filterErpList(modalType) {
+        const searchTerm = document.getElementById(`erp_search_${modalType}`).value.toLowerCase();
+        const container = document.getElementById(`erp_customer_name_${modalType}`);
+        
+        // Select only labels that have the data-name attribute (i.e., customer labels)
+        const labels = container.querySelectorAll('label[data-name]');
+        
+        labels.forEach(label => {
+            const customerName = label.dataset.name; // Already lowercase from template
+            if (customerName.includes(searchTerm)) {
+                label.style.display = 'block'; // Use 'block' to respect layout
+            } else {
+                label.style.display = 'none';
+            }
+        });
+    }
+    // --- END NEW FUNCTION ---
+
     document.addEventListener('DOMContentLoaded', function() {
         const searchInput = document.getElementById('customerSearchInput');
 
@@ -350,8 +388,19 @@
         
         // Run once on load to set the initial summary text
         filterCustomerTable();
+
+        // --- NEW: Add event listeners for modal ERP search bars ---
+        const erpSearchAdd = document.getElementById('erp_search_add');
+        if (erpSearchAdd) {
+            erpSearchAdd.addEventListener('input', () => filterErpList('add'));
+        }
+        
+        const erpSearchEdit = document.getElementById('erp_search_edit');
+        if (erpSearchEdit) {
+            erpSearchEdit.addEventListener('input', () => filterErpList('edit'));
+        }
+        // --- END NEW ---
     });
-    // --- END NEW SCRIPT ---
 
 
     function handleAllCheck(allCheckbox, modalType) {
@@ -382,6 +431,12 @@
 
     function openAddModal() {
         dtUtils.resetForm('addForm');
+        
+        // --- NEW: Reset ERP search and filter ---
+        document.getElementById('erp_search_add').value = '';
+        filterErpList('add');
+        // --- END NEW ---
+        
         document.querySelectorAll('.erp-checkbox-add').forEach(cb => {
             cb.checked = false;
             cb.disabled = false;
@@ -390,6 +445,13 @@
     }
 
     function openEditModal(customerData) {
+        dtUtils.resetForm('editForm'); // Reset form first
+        
+        // --- NEW: Reset ERP search and filter ---
+        document.getElementById('erp_search_edit').value = '';
+        filterErpList('edit');
+        // --- END NEW ---
+        
         document.getElementById('edit_customer_id').value = customerData.customer_id;
         document.getElementById('edit_first_name').value = customerData.first_name || '';
         document.getElementById('edit_last_name').value = customerData.last_name || '';

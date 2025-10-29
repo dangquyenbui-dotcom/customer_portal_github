@@ -80,6 +80,15 @@
     .btn-reset-pw:hover {
         background: var(--btn-info-hover);
     }
+    
+    /* === NEW: Added Grid Footer Style === */
+    .grid-footer { 
+        padding: 10px; text-align: right; font-size: 14px; 
+        color: var(--text-tertiary); font-weight: 500; 
+        background: var(--bg-secondary); border-radius: 0 0 10px 10px; 
+        border: 1px solid var(--border-primary); 
+        margin-top: -1px; /* Aligns with bottom of data-table */
+    }
 </style>
 {% endblock %}
 
@@ -96,15 +105,14 @@
         <form method="GET" action="{{ url_for('admin_customers.manage_customers') }}" id="filterForm" style="display: flex; gap: 15px; align-items: center;">
             <div class="search-bar">
                 <span class="search-icon">🔍</span>
-                <input type="text" name="search" class="search-input" placeholder="Search Name, Email, ERP Name..." value="{{ search_term or '' }}">
+                <input type="text" name="search" class="search-input" placeholder="Search displayed records..." id="customerSearchInput">
             </div>
             
-             <select name="status" class="filter-select" onchange="document.getElementById('filterForm').submit()">
+             <select name="status" class="filter-select" id="statusFilterInput" onchange="document.getElementById('filterForm').submit()">
                 <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active</option>
                 <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Inactive</option>
                 <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All</option>
             </select>
-            <button type="submit" class="btn btn-secondary">Filter</button>
             <a href="{{ url_for('admin_customers.manage_customers') }}" class="btn btn-secondary">Reset</a>
          </form>
     </div>
@@ -126,7 +134,7 @@
                 <th>Actions</th>
             </tr>
         </thead>
-        <tbody>
+        <tbody id="customerTableBody">
             {% for customer in customers %}
             <tr>
                 <td>{{ customer.first_name }} {{ customer.last_name }}</td>
@@ -175,6 +183,10 @@
         <p>No customers match the current filter criteria, or none have been added yet.</p>
     </div>
     {% endif %}
+</div>
+
+<div class="grid-footer" id="gridFooter">
+    <span id="rowCountSummary">Showing {{ visible_customer_count }} of {{ total_customer_count }} total customer records</span>
 </div>
 
 
@@ -284,6 +296,64 @@
 
 {% block scripts %}
 <script>
+    // --- NEW: Client-side filtering and summary updates ---
+    
+    // Total number of customers matching the STATUS filter (from server)
+    const serverVisibleCount = {{ visible_customer_count }};
+    // Total number of customers in the DB
+    const totalCustomerCount = {{ total_customer_count }};
+    
+    /**
+     * Filters the customer table based on the search input and updates the summary.
+     */
+    function filterCustomerTable() {
+        const searchInput = document.getElementById('customerSearchInput');
+        const tableBody = document.getElementById('customerTableBody');
+        const summaryEl = document.getElementById('rowCountSummary');
+        
+        if (!tableBody || !summaryEl) return;
+
+        const searchTerm = searchInput ? searchInput.value.toLowerCase() : '';
+        const rows = tableBody.querySelectorAll('tr');
+        let jsVisibleCount = 0;
+        
+        rows.forEach(row => {
+            const rowText = row.textContent.toLowerCase();
+            const isVisible = rowText.includes(searchTerm);
+            row.style.display = isVisible ? '' : 'none';
+            if (isVisible) {
+                jsVisibleCount++;
+            }
+        });
+        
+        // Update summary text
+        const statusSelect = document.getElementById('statusFilterInput');
+        const statusText = statusSelect.options[statusSelect.selectedIndex].text;
+        
+        if (searchTerm) {
+            summaryEl.textContent = `Showing ${jsVisibleCount} of ${serverVisibleCount} customers (matching status: ${statusText} and search)`;
+        } else {
+             summaryEl.textContent = `Showing ${jsVisibleCount} of ${totalCustomerCount} total customer records (matching status: ${statusText})`;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('customerSearchInput');
+
+        if (searchInput && typeof dtUtils !== 'undefined' && dtUtils.debounce) {
+            // Add the live search event listener
+            searchInput.addEventListener('input', dtUtils.debounce(filterCustomerTable, 250));
+        } else if (searchInput) {
+            // Fallback if debounce isn't loaded
+            searchInput.addEventListener('input', filterCustomerTable);
+        }
+        
+        // Run once on load to set the initial summary text
+        filterCustomerTable();
+    });
+    // --- END NEW SCRIPT ---
+
+
     function handleAllCheck(allCheckbox, modalType) {
         const selector = `.erp-checkbox-${modalType}`;
         const otherCheckboxes = document.querySelectorAll(selector + ':not([value="All"])');

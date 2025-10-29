@@ -17,10 +17,12 @@ admin_customers_bp = Blueprint('admin_customers', __name__)
 @admin_required
 def manage_customers():
     """Displays the customer management page."""
-    search_term = request.args.get('search', '').strip()
+    # === MODIFICATION: Removed search_term from server-side filtering ===
+    # search_term = request.args.get('search', '').strip() 
     status_filter = request.args.get('status', 'active')
 
     customers = customer_db.get_all_customers(include_inactive=True)
+    total_customer_count = len(customers) # --- NEW: Get total count
 
     filtered_customers = []
     for cust in customers:
@@ -29,19 +31,23 @@ def manage_customers():
                         (status_filter == 'active' and is_active) or
                         (status_filter == 'inactive' and not is_active))
 
-        search_match = False
-        if not search_term:
-            search_match = True
-        else:
-            term = search_term.lower()
-            if (term in cust.get('first_name', '').lower() or
-                term in cust.get('last_name', '').lower() or
-                term in cust.get('email', '').lower() or
-                term in cust.get('erp_customer_name', '').lower().replace('|', ', ')):
-                search_match = True
+        # === MODIFICATION: Removed server-side text search logic ===
+        # search_match = False
+        # if not search_term:
+        #     search_match = True
+        # else:
+        #     term = search_term.lower()
+        #     if (term in cust.get('first_name', '').lower() or
+        #         term in cust.get('last_name', '').lower() or
+        #         term in cust.get('email', '').lower() or
+        #         term in cust.get('erp_customer_name', '').lower().replace('|', ', ')):
+        #         search_match = True
+        # === END MODIFICATION ===
 
-        if status_match and search_match:
+        if status_match: # Only filter by status
             filtered_customers.append(cust)
+            
+    visible_customer_count = len(filtered_customers) # --- NEW: Get count after status filter
 
     erp_service = get_erp_service()
     try:
@@ -55,8 +61,10 @@ def manage_customers():
         'admin/customer_management.html',
         customers=filtered_customers,
         erp_customer_names=erp_customer_names,
-        search_term=search_term,
-        status_filter=status_filter
+        # search_term=search_term, # No longer passed to template
+        status_filter=status_filter,
+        total_customer_count=total_customer_count, # --- NEW: Pass total count
+        visible_customer_count=visible_customer_count # --- NEW: Pass visible count
         )
 
 @admin_customers_bp.route('/customers/add', methods=['POST'])

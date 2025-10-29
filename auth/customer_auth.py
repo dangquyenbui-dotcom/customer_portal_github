@@ -46,7 +46,6 @@ def login_required(f):
 
 # --- Admin Authentication ---
 
-# ... (rest of file is unchanged) ...
 def authenticate_admin(username, password):
     """
     Authenticates an admin user.

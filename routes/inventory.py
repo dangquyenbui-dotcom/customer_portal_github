@@ -35,7 +35,6 @@ def view_inventory():
         flash(error_message, 'error')
         traceback.print_exc() # Log the full error for debugging
 
-    # ... (rest of file is unchanged) ...
     parts = sorted(list(set(item.get('Part', '') for item in inventory_data if item.get('Part'))))
     bins = sorted(list(set(item.get('BIN', '') for item in inventory_data if item.get('BIN'))))
     statuses = sorted(list(set(item.get('Status', '') for item in inventory_data if item.get('Status'))))
@@ -52,7 +51,7 @@ def view_inventory():
 @inventory_bp.route('/api/export-xlsx', methods=['POST'])
 @login_required # Protect this route
 def export_inventory_xlsx():
-    # ... (this function needs no changes, as @login_required protects it) ...
+    """API endpoint to export the visible inventory data to an XLSX file."""
     try:
         data = request.get_json()
         headers = data.get('headers', [])
@@ -70,13 +69,13 @@ def export_inventory_xlsx():
             processed_row = []
             for cell_value in row_data:
                 if isinstance(cell_value, str):
-                    cleaned_value = cell_value.replace(',', '')
+                    cleaned_value = cell_value.replace(',', '') 
                     try:
                         processed_row.append(float(cleaned_value))
                     except ValueError:
                         processed_row.append(cell_value)
                 else:
-                    processed_row.append(cell_value)
+                    processed_row.append(cell_value) 
             ws.append(processed_row)
 
         output = BytesIO()

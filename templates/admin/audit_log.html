@@ -5,13 +5,14 @@
 {% block navbar_title %}📜 Audit Log{% endblock %}
 
 {% block nav_links %}
-    <span style="color: white; margin-right: 15px;">Admin: {{ session.admin.username }}</span>
+    <span style="color: white; margin-right: 15px;">Admin: {{ g.admin.username }}</span>
     <a href="{{ url_for('admin_panel.panel') }}">Admin Dashboard</a>
+    <a href="{{ url_for('admin_customers.manage_customers') }}">Manage Customers</a>
+    <a href="{{ url_for('admin_sessions.view_sessions') }}">Active Sessions</a>
     <a href="{{ url_for('main.admin_logout') }}">Admin Logout</a>
 {% endblock %}
 
 {% block styles %}
-{# admin.css and base.css already included #}
 <style>
     .filter-bar {
         background: var(--bg-secondary);
@@ -65,7 +66,6 @@
 
 <div id="alerts"></div>
 
-{# --- Filter Bar --- #}
 <div class="filter-bar">
     <form method="GET" action="{{ url_for('admin_audit.view_audit_log') }}" id="filterForm" style="display: flex; flex-wrap: wrap; gap: 15px; align-items: center; width: 100%;">
         <div class="filter-group">
@@ -140,7 +140,6 @@
     {% endif %}
 </div>
 
-{# Basic Pagination Placeholder - Add more robust pagination later if needed #}
 <div style="text-align: center; margin-top: 20px;">
     {% if page > 1 %}
         <a href="{{ url_for('admin_audit.view_audit_log', page=page-1, admin_username=current_admin, action_type=current_action, customer_search=current_customer_search) }}" class="btn btn-secondary btn-sm">&lt; Previous</a>
@@ -155,6 +154,5 @@
 
 {% block scripts %}
 <script>
-    // Add specific JS for this page if needed later (e.g., date pickers)
 </script>
 {% endblock %}

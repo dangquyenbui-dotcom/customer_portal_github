@@ -5,13 +5,14 @@
 {% block navbar_title %}👥 Manage Customers{% endblock %}
 
 {% block nav_links %}
-    <span style="color: white; margin-right: 15px;">Admin: {{ session.admin.username }}</span>
+    <span style="color: white; margin-right: 15px;">Admin: {{ g.admin.username }}</span>
     <a href="{{ url_for('admin_panel.panel') }}">Admin Dashboard</a>
+    <a href="{{ url_for('admin_audit.view_audit_log') }}">Audit Log</a>
+    <a href="{{ url_for('admin_sessions.view_sessions') }}">Active Sessions</a>
     <a href="{{ url_for('main.admin_logout') }}">Admin Logout</a>
 {% endblock %}
 
 {% block styles %}
-{# admin.css is already included in base.html #}
 <style>
     .actions-bar { margin-bottom: 20px; }
     
@@ -71,7 +72,6 @@
         margin: 8px 0;
     }
     
-    /* === NEW: Style for reset password button === */
     .btn-reset-pw {
         background: var(--btn-info-bg);
         color: var(--btn-info-text);
@@ -88,7 +88,7 @@
     <p>Create, view, edit, and manage customer portal access.</p>
 </div>
 
-<div id="alerts"></div> {# For JS alerts from common.js #}
+<div id="alerts"></div> 
 
 <div class="actions-bar">
      <div class="filter-section">
@@ -227,7 +227,7 @@
     <div class="modal-content">
         <span class="close" onclick="dtUtils.closeModal('editModal')">&times;</span>
         <h2>Edit Customer</h2>
-        <form id="editForm"> {# Will be submitted via JS #}
+        <form id="editForm"> 
             <input type="hidden" id="edit_customer_id" name="customer_id">
              <div class="form-row">
                 <div class="form-group">
@@ -283,7 +283,6 @@
 
 {% block scripts %}
 <script>
-    // === Checkbox logic helpers ===
     function handleAllCheck(allCheckbox, modalType) {
         const selector = `.erp-checkbox-${modalType}`;
         const otherCheckboxes = document.querySelectorAll(selector + ':not([value="All"])');
@@ -423,7 +422,6 @@
         }
     }
     
-    // === NEW: Admin Password Reset Function ===
     function triggerAdminReset(customerId, customerName, buttonElement) {
         const originalText = buttonElement.innerHTML;
         if (!confirm(`Are you sure you want to reset the password for "${customerName}"?\n\nA new temporary password will be generated and emailed to them.`)) {

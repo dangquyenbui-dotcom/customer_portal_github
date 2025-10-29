@@ -12,12 +12,16 @@ class AuditLogDB:
     """Audit Log database operations"""
 
     def __init__(self):
-        self.db = get_db()
-        self.ensure_table()
+        # === MODIFICATION: Do not store db instance ===
+        # self.db = get_db() 
+        # === MODIFICATION: REMOVE ensure_tables() call ===
+        # self.ensure_table()
+        pass # Init does nothing now
 
     def ensure_table(self):
         """Ensure the AuditLog table exists."""
-        if not self.db.check_table_exists('AuditLog'):
+        db = get_db() # === ADDED ===
+        if not db.check_table_exists('AuditLog'): # === MODIFIED ===
             print("⏳ Creating AuditLog table...")
             create_query = """
                 CREATE TABLE AuditLog (
@@ -34,7 +38,7 @@ class AuditLogDB:
                 CREATE INDEX IX_AuditLog_Action ON AuditLog(action_type);
                 CREATE INDEX IX_AuditLog_TargetCustomer ON AuditLog(target_customer_id);
             """
-            if self.db.execute_query(create_query):
+            if db.execute_query(create_query): # === MODIFIED ===
                 print("✅ AuditLog table created successfully.")
             else:
                 print("❌ Failed to create AuditLog table.")
@@ -42,6 +46,7 @@ class AuditLogDB:
     # === MODIFICATION: Added 'admin_username' parameter and context handling ===
     def log_event(self, action_type, target_customer_id=None, target_customer_email=None, details=None, admin_username=None):
         """Logs an audit event."""
+        db = get_db() # === ADDED ===
         
         if admin_username is None:
             try:
@@ -70,7 +75,7 @@ class AuditLogDB:
             details_str
         )
         try:
-            success = self.db.execute_query(query, params)
+            success = db.execute_query(query, params) # === MODIFIED ===
             if not success:
                 print(f"⚠️ [Audit Log] Failed to log event: {action_type} by {admin_username}")
         except Exception as e:
@@ -79,6 +84,7 @@ class AuditLogDB:
 
     def get_logs(self, limit=100, offset=0, admin_filter=None, action_filter=None, customer_filter=None):
         """Retrieves audit logs with optional filtering."""
+        db = get_db() # === ADDED ===
         query = "SELECT log_id, timestamp, admin_username, action_type, target_customer_id, target_customer_email, details FROM AuditLog"
         filters = []
         params = []
@@ -109,11 +115,11 @@ class AuditLogDB:
         query += " ORDER BY timestamp DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY"
         params.extend([offset, limit])
 
-        logs = self.db.execute_query(query, params)
+        logs = db.execute_query(query, params) # === MODIFIED ===
         
         # Get distinct admins and actions for filter dropdowns
-        distinct_admins = [row['admin_username'] for row in self.db.execute_query("SELECT DISTINCT admin_username FROM AuditLog ORDER BY admin_username")]
-        distinct_actions = [row['action_type'] for row in self.db.execute_query("SELECT DISTINCT action_type FROM AuditLog ORDER BY action_type")]
+        distinct_admins = [row['admin_username'] for row in db.execute_query("SELECT DISTINCT admin_username FROM AuditLog ORDER BY admin_username")] # === MODIFIED ===
+        distinct_actions = [row['action_type'] for row in db.execute_query("SELECT DISTINCT action_type FROM AuditLog ORDER BY action_type")] # === MODIFIED ===
 
         return logs or [], distinct_admins, distinct_actions
 

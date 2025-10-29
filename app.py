@@ -12,6 +12,10 @@ import traceback
 from utils.helpers import get_client_info
 import secrets
 import random
+# === NEW IMPORTS ===
+from database.connection import close_db, DatabaseConnection
+from database.erp_connection_base import close_erp_db, ERPConnection
+# === END NEW IMPORTS ===
 
 def create_app():
     app = Flask(__name__)
@@ -36,10 +40,17 @@ def create_app():
         )
 
     # --- Register Blueprints ---
-    register_blueprints(app)
+    register_blueprints(app) # Pass app
 
     # --- Initialize Database Connections (Test on startup) ---
-    initialize_database_connections()
+    # === MODIFICATION: Pass app object ===
+    initialize_database_connections(app)
+
+    # === NEW: Register teardown functions ===
+    # These will run at the end of each request to close the DB connections
+    app.teardown_appcontext(close_db)
+    app.teardown_appcontext(close_erp_db)
+    # === END NEW ===
 
     @app.before_request
     def load_user_from_session():
@@ -49,12 +60,18 @@ def create_app():
         # === END FIX ===
 
         # Get DB instances
-        from database import session_db, customer_db
+        # === MODIFICATION: Import get_db functions directly ===
+        from database import session_db, customer_db, get_db
+        # === END MODIFICATION ===
+
 
         # --- Prune stale sessions (1% chance) ---
         if random.randint(1, 100) == 1:
             try:
+                # === MODIFICATION: Must call get_db() first to get context ===
+                db_conn = get_db() # Ensure connection exists for this thread
                 session_db.prune_inactive(Config.SESSION_HOURS)
+                # === END MODIFICATION ===
             except Exception as e:
                 print(f"⚠️ Error pruning stale sessions: {e}")
 
@@ -98,7 +115,10 @@ def create_app():
 
     @app.teardown_appcontext
     def teardown_db(exception=None):
+        # === MODIFICATION: This function is now registered above ===
+        # We can leave this one empty, or remove it.
         pass
+        # === END MODIFICATION ===
 
     print("✅ Customer Portal application created.")
     return app
@@ -135,40 +155,51 @@ def register_blueprints(app):
          traceback.print_exc()
 
 
-def initialize_database_connections():
+# === MODIFICATION: Pass 'app' object ===
+def initialize_database_connections(app):
     """Initialize and test database connections on startup"""
     print("⏳ Initializing database connections...")
     all_ok = True
-    try:
-        from database import get_db
-        local_db = get_db()
-        if local_db.test_connection():
-            print("✅ Local DB (CustomerPortalDB): Connected")
-            # === MODIFIED: Added analytics_db ===
-            from database import customer_db, audit_db, session_db, analytics_db
-            print("✅ Local DB Tables (Customers, AuditLog, ActiveSessions, Analytics) Checked/Created.")
-        else:
-            print("❌ Local DB (CustomerPortalDB): Connection FAILED")
-            all_ok = False
-    except Exception as e:
-        print(f"❌ Local DB (CustomerPortalDB): Initialization Error: {e}")
-        traceback.print_exc()
-        all_ok = False
 
-    try:
-        from database import get_erp_db_connection # Use the __init__ file import
-        erp_db = get_erp_db_connection()
-        if erp_db and erp_db.connection:
-            print("✅ ERP DB (Read-Only): Connected")
-        elif erp_db and erp_db._connection_string:
-             print("✅ ERP DB (Read-Only): Connection String Ready")
-        else:
-             print("❌ ERP DB (Read-Only): Connection FAILED during setup")
-             all_ok = False
-    except Exception as e:
-        print(f"❌ ERP DB (Read-Only): Initialization Error: {e}")
-        traceback.print_exc()
-        all_ok = False
+    # === MODIFICATION: Wrap database calls in app_context ===
+    with app.app_context():
+        try:
+            # === MODIFICATION: Test connection without creating singleton ===
+            local_db_test = DatabaseConnection()
+            if local_db_test.test_connection():
+                print("✅ Local DB (CustomerPortalDB): Connected")
+                # Trigger table creation checks by instantiating
+                from database import customer_db, audit_db, session_db, analytics_db
+                
+                # === NEW: Explicitly call ensure_tables ===
+                customer_db.ensure_tables()
+                audit_db.ensure_tables()
+                session_db.ensure_tables()
+                # analytics_db has no table, so it's skipped
+                # === END NEW ===
+                
+                print("✅ Local DB Tables (Customers, AuditLog, ActiveSessions) Checked/Created.")
+            else:
+                print("❌ Local DB (CustomerPortalDB): Connection FAILED")
+                all_ok = False
+        except Exception as e:
+            print(f"❌ Local DB (CustomerPortalDB): Initialization Error: {e}")
+            traceback.print_exc()
+            all_ok = False
+
+        try:
+            # === MODIFICATION: Test connection without creating singleton ===
+            erp_db_test = ERPConnection()
+            if erp_db_test.test_connection():
+                print("✅ ERP DB (Read-Only): Connected")
+            else:
+                 print("❌ ERP DB (Read-Only): Connection FAILED during setup")
+                 all_ok = False
+        except Exception as e:
+            print(f"❌ ERP DB (Read-Only): Initialization Error: {e}")
+            traceback.print_exc()
+            all_ok = False
+    # === END MODIFICATION ===
 
     if all_ok:
         print("✅ All database connections initialized successfully.")

@@ -12,12 +12,16 @@ class SessionStoreDB:
     """Active Session database operations"""
 
     def __init__(self):
-        self.db = get_db()
-        self.ensure_table()
+        # === MODIFICATION: Do not store db instance ===
+        # self.db = get_db()
+        # === MODIFICATION: REMOVE ensure_tables() call ===
+        # self.ensure_table()
+        pass # Init does nothing now
 
     def ensure_table(self):
         """Ensure the ActiveSessions table exists."""
-        if not self.db.check_table_exists('ActiveSessions'):
+        db = get_db() # === ADDED ===
+        if not db.check_table_exists('ActiveSessions'): # === MODIFIED ===
             print("⏳ Creating ActiveSessions table...")
             create_query = """
                 CREATE TABLE ActiveSessions (
@@ -34,13 +38,14 @@ class SessionStoreDB:
                 CREATE INDEX IX_ActiveSessions_CustomerID ON ActiveSessions(customer_id);
                 CREATE INDEX IX_ActiveSessions_LastSeen ON ActiveSessions(last_seen DESC);
             """
-            if self.db.execute_query(create_query):
+            if db.execute_query(create_query): # === MODIFIED ===
                 print("✅ ActiveSessions table created successfully.")
             else:
                 print("❌ Failed to create ActiveSessions table.")
 
     def create_or_update(self, session_id, customer_id, ip_address, user_agent):
         """Creates or updates a session in the database."""
+        db = get_db() # === ADDED ===
         now = datetime.utcnow()
         # Use MERGE for an atomic "upsert" (update or insert)
         query = """
@@ -55,24 +60,27 @@ class SessionStoreDB:
         """
         params = (session_id, customer_id, ip_address, user_agent, now)
         try:
-            return self.db.execute_query(query, params)
+            return db.execute_query(query, params) # === MODIFIED ===
         except Exception as e:
             print(f"❌ [SessionDB] Error in create_or_update: {e}")
             return False
 
     def get(self, session_id):
         """Retrieves a session from the DB if it exists."""
+        db = get_db() # === ADDED ===
         query = "SELECT * FROM ActiveSessions WHERE session_id = ?"
-        results = self.db.execute_query(query, (session_id,))
+        results = db.execute_query(query, (session_id,)) # === MODIFIED ===
         return results[0] if results else None
 
     def delete(self, session_id):
         """Deletes a session from the DB (the 'kick' action)."""
+        db = get_db() # === ADDED ===
         query = "DELETE FROM ActiveSessions WHERE session_id = ?"
-        return self.db.execute_query(query, (session_id,))
+        return db.execute_query(query, (session_id,)) # === MODIFIED ===
 
     def get_all_active(self):
         """Gets all active sessions, joining with customer info."""
+        db = get_db() # === ADDED ===
         # We join with Customers to get names and email
         query = """
             SELECT 
@@ -89,14 +97,15 @@ class SessionStoreDB:
             JOIN Customers c ON s.customer_id = c.customer_id
             ORDER BY s.last_seen DESC
         """
-        return self.db.execute_query(query)
+        return db.execute_query(query) # === MODIFIED ===
 
     def prune_inactive(self, session_hours):
         """Removes sessions that haven't been seen in session_hours."""
+        db = get_db() # === ADDED ===
         cutoff = datetime.utcnow() - timedelta(hours=session_hours)
         query = "DELETE FROM ActiveSessions WHERE last_seen < ?"
         try:
-            success = self.db.execute_query(query, (cutoff,))
+            success = db.execute_query(query, (cutoff,)) # === MODIFIED ===
             if success:
                 print(f"ℹ️ [SessionDB] Pruned stale sessions older than {cutoff}.")
         except Exception as e:

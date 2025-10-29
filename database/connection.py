@@ -8,13 +8,17 @@ import pyodbc
 from config import Config
 from contextlib import contextmanager
 import traceback
+from flask import g # === NEW IMPORT ===
 
 class DatabaseConnection:
     """Local Database (CustomerPortalDB) connection handler"""
 
     def __init__(self):
         self.connection = None
+        # === MODIFICATION: Build connection string on init ===
         self._connection_string = self._build_connection_string()
+        if not self._connection_string:
+            raise ConnectionError("Failed to build connection string for Local DB.")
         # Attempt initial connection
         self.connect()
 
@@ -86,6 +90,7 @@ class DatabaseConnection:
                     self.disconnect() # Clean up old connection
 
             # print("ℹ️ [Local DB] Establishing new connection...")
+            # === MODIFICATION: Connect using the stored connection string ===
             self.connection = pyodbc.connect(self._connection_string)
             self.connection.setdecoding(pyodbc.SQL_CHAR, encoding='utf-8')
             self.connection.setdecoding(pyodbc.SQL_WCHAR, encoding='utf-8')
@@ -114,7 +119,18 @@ class DatabaseConnection:
 
     def test_connection(self):
         """Test database connection"""
-        return self.connect() # connect() already includes a test
+        # === MODIFICATION: Test by connecting and disconnecting ===
+        # This ensures the connection string is valid without leaving a connection open.
+        if not self._connection_string:
+            return False
+        try:
+            test_conn = pyodbc.connect(self._connection_string, timeout=5)
+            test_conn.close()
+            return True
+        except Exception as e:
+            print(f"❌ [Local DB] Test connection failed: {e}")
+            return False
+
 
     @contextmanager
     def get_cursor(self):
@@ -185,14 +201,24 @@ class DatabaseConnection:
             return False # Assume table doesn't exist if check fails
 
 
-# Global instance (singleton pattern)
-_db_instance = None
+# === MODIFICATION: Remove global instance ===
+# _db_instance = None 
 
 def get_db():
-    """Get the global database instance for the local DB"""
-    global _db_instance
-    if _db_instance is None:
-        _db_instance = DatabaseConnection()
-        if _db_instance.connection is None:
-             raise ConnectionError("Failed to initialize the primary local database connection.")
-    return _db_instance
+    """
+    Get the global database instance for the local DB.
+    Creates one for the current request context (g) if it doesn't exist.
+    """
+    # === MODIFICATION: Use Flask's 'g' context ===
+    if 'local_db' not in g:
+        g.local_db = DatabaseConnection()
+    return g.local_db
+    # === END MODIFICATION ===
+
+# === NEW FUNCTION ===
+def close_db(e=None):
+    """Closes the database connection in the current context."""
+    db = g.pop('local_db', None)
+    if db is not None:
+        db.disconnect()
+# === END NEW FUNCTION ===

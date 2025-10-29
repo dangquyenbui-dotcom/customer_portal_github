@@ -11,13 +11,16 @@ class AnalyticsDB:
     """Analytics database operations"""
 
     def __init__(self):
-        self.db = get_db()
+        # === MODIFICATION: Do not store db instance ===
+        # self.db = get_db()
+        pass
 
     def get_kpi_stats(self):
         """
         Gets the 4 key performance indicators for the dashboard header
         in a single, efficient query.
         """
+        db = get_db() # === ADDED ===
         query = """
             SELECT
                 (SELECT COUNT(*) FROM Customers WHERE is_active = 1) AS active_customers,
@@ -32,7 +35,7 @@ class AnalyticsDB:
                  WHERE action_type = 'CUSTOMER_LOGIN' 
                  AND timestamp >= DATEADD(day, -7, GETUTCDATE())) AS unique_logins_last_7_days
         """
-        results = self.db.execute_query(query)
+        results = db.execute_query(query) # === MODIFIED ===
         return results[0] if results else {
             'active_customers': 0,
             'current_sessions': 0,
@@ -44,6 +47,7 @@ class AnalyticsDB:
         """
         Gets the count of customer logins grouped by day for the last N days.
         """
+        db = get_db() # === ADDED ===
         cutoff_date = datetime.utcnow() - timedelta(days=days)
         query = """
             SELECT 
@@ -54,12 +58,13 @@ class AnalyticsDB:
             GROUP BY CAST(timestamp AS DATE)
             ORDER BY login_date ASC;
         """
-        return self.db.execute_query(query, (cutoff_date,))
+        return db.execute_query(query, (cutoff_date,)) # === MODIFIED ===
 
     def get_most_active_customers(self, limit=10):
         """
         Gets the top N customers by login count.
         """
+        db = get_db() # === ADDED ===
         query = """
             SELECT TOP (?)
                 ISNULL(target_customer_email, 'Unknown') AS customer_email,
@@ -69,12 +74,13 @@ class AnalyticsDB:
             GROUP BY target_customer_email
             ORDER BY login_count DESC;
         """
-        return self.db.execute_query(query, (limit,))
+        return db.execute_query(query, (limit,)) # === MODIFIED ===
 
     def get_recent_logins(self, limit=10):
         """
         Gets the last N customer login events.
         """
+        db = get_db() # === ADDED ===
         query = """
             SELECT TOP (?)
                 timestamp,
@@ -84,7 +90,7 @@ class AnalyticsDB:
             WHERE action_type = 'CUSTOMER_LOGIN'
             ORDER BY timestamp DESC;
         """
-        return self.db.execute_query(query, (limit,))
+        return db.execute_query(query, (limit,)) # === MODIFIED ===
 
 # Singleton instance
 analytics_db = AnalyticsDB()

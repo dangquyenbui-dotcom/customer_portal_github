@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+
+{% block title %}Usage Analytics - Admin{% endblock %}
+
+{% block navbar_title %}📊 Usage Analytics{% endblock %}
+
+{% block nav_links %}
+    <span style="color: white; margin-right: 15px;">Admin: {{ g.admin.username }}</span>
+    <a href="{{ url_for('admin_panel.panel') }}">Admin Dashboard</a>
+    <a href="{{ url_for('admin_customers.manage_customers') }}">Manage Customers</a>
+    <a href="{{ url_for('admin_audit.view_audit_log') }}">Audit Log</a>
+    <a href="{{ url_for('admin_sessions.view_sessions') }}">Active Sessions</a>
+    <a href="{{ url_for('main.admin_logout') }}">Admin Logout</a>
+{% endblock %}
+
+{% block styles %}
+<style>
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+    }
+    .stat-card {
+        background: var(--bg-secondary);
+        border-radius: 10px;
+        padding: 20px 25px;
+        box-shadow: var(--shadow-sm);
+        border: 1px solid var(--border-primary);
+    }
+    .stat-label {
+        font-size: 14px;
+        color: var(--text-tertiary);
+        margin-bottom: 8px;
+    }
+    .stat-number {
+        font-size: 32px;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+    .stat-number.blue { color: var(--accent-blue); }
+    .stat-number.green { color: var(--accent-green); }
+    .stat-number.orange { color: var(--accent-orange); }
+
+    .chart-container {
+        background: var(--bg-secondary);
+        padding: 25px;
+        border-radius: 10px;
+        box-shadow: var(--shadow-sm);
+        border: 1px solid var(--border-primary);
+        margin-bottom: 30px;
+    }
+    
+    .data-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 30px;
+    }
+    
+    @media (max-width: 900px) {
+        .data-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="header-card">
+    <h1>Usage Analytics</h1>
+    <p>View customer login activity and portal usage statistics.</p>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">Active Customers</div>
+        <div class="stat-number">{{ kpi_stats.active_customers }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Logins (Last 7 Days)</div>
+        <div class="stat-number green">{{ kpi_stats.logins_last_7_days }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Unique Logins (Last 7 Days)</div>
+        <div class="stat-number blue">{{ kpi_stats.unique_logins_last_7_days }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Currently Active Sessions</div>
+        <div class="stat-number orange">{{ kpi_stats.current_sessions }}</div>
+    </div>
+</div>
+
+<div class="chart-container">
+    <h2 style="margin-bottom: 20px; color: var(--text-primary);">Logins per Day (Last 14 Days)</h2>
+    <canvas id="loginChart"></canvas>
+</div>
+
+<div class="data-grid">
+    <div class="data-table">
+        <h2 style="padding: 20px 20px 0 20px; color: var(--text-primary);">Most Active Customers</h2>
+        {% if most_active_customers %}
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Customer Email</th>
+                    <th>Total Logins</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for customer in most_active_customers %}
+                <tr>
+                    <td>{{ customer.customer_email }}</td>
+                    <td>{{ customer.login_count }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state"><div class="empty-state-icon">👥</div><h3>No login data found.</h3></div>
+        {% endif %}
+    </div>
+
+    <div class="data-table">
+        <h2 style="padding: 20px 20px 0 20px; color: var(--text-primary);">Recent Logins</h2>
+        {% if recent_logins %}
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Timestamp (UTC)</th>
+                    <th>Customer Email</th>
+                    <th>IP Address</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for login in recent_logins %}
+                <tr>
+                    <td title="{{ login.timestamp }}">{{ login.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                    <td>{{ login.target_customer_email }}</td>
+                    <td>{{ login.ip_address }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state"><div class="empty-state-icon">📜</div><h3>No recent logins found.</h3></div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const ctx = document.getElementById('loginChart');
+        if (!ctx) return;
+
+        const chartLabels = {{ chart_labels | safe }};
+        const chartData = {{ chart_data | safe }};
+        
+        // Get theme-aware colors
+        const style = getComputedStyle(document.body);
+        const gridColor = style.getPropertyValue('--border-primary');
+        const textColor = style.getPropertyValue('--text-tertiary');
+        const accentColor = style.getPropertyValue('--accent-blue');
+        
+        const loginChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: chartLabels,
+                datasets: [{
+                    label: 'Customer Logins',
+                    data: chartData,
+                    fill: true,
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    borderColor: accentColor,
+                    tension: 0.3,
+                    pointBackgroundColor: accentColor,
+                    pointRadius: 4,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            color: textColor,
+                            precision: 0 // Ensure whole numbers
+                        },
+                        grid: {
+                            color: gridColor
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            color: textColor
+                        },
+                        grid: {
+                            display: false
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+        
+        // Handle theme change to update chart colors
+        window.addEventListener('themeChange', (e) => {
+            const newStyle = getComputedStyle(document.body);
+            const newGridColor = newStyle.getPropertyValue('--border-primary');
+            const newTextColor = newStyle.getPropertyValue('--text-tertiary');
+            const newAccentColor = newStyle.getPropertyValue('--accent-blue');
+
+            loginChart.options.scales.y.ticks.color = newTextColor;
+            loginChart.options.scales.y.grid.color = newGridColor;
+            loginChart.options.scales.x.ticks.color = newTextColor;
+            loginChart.data.datasets[0].borderColor = newAccentColor;
+            loginChart.data.datasets[0].pointBackgroundColor = newAccentColor;
+            loginChart.update();
+        });
+    });
+</script>
+{% endblock %}

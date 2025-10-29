@@ -23,8 +23,8 @@ echo.
 echo Starting Waitress server on port 5001 with more threads...
 echo (Press CTRL+C to stop the server)
 echo.
-REM Run the Waitress server with increased threads (e.g., 10) on port 5001
-waitress-serve --host=0.0.0.0 --port=5001 --threads=10 --call app:create_app
+REM Run the Waitress server with increased threads (e.g., 20) on port 5001
+waitress-serve --host=0.0.0.0 --port=5001 --threads=20 --call app:create_app
 
 echo.
 echo Server stopped.

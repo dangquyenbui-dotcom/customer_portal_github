@@ -94,6 +94,19 @@
         border: 1px solid var(--border-primary); 
         margin-top: -1px; /* Aligns with bottom of data-table */
     }
+
+    /* === MODIFICATION: Added styles for new status text === */
+    .status-text-pending {
+        color: var(--alert-info-text);
+        font-weight: 500;
+    }
+    .status-text-new {
+        color: var(--accent-blue);
+        font-weight: 500;
+    }
+    .status-text-inactive {
+        color: var(--text-tertiary);
+    }
 </style>
 {% endblock %}
 
@@ -134,8 +147,8 @@
                 <th>Name</th>
                 <th>Email</th>
                 <th>ERP Customer Name(s)</th>
-                <th>Status</th>
-                <th>Last Login</th>
+                <th>Account Status</th> {# #}
+                <th>Last Activity</th> {# #}
                 <th>Actions</th>
             </tr>
         </thead>
@@ -145,14 +158,33 @@
                 <td>{{ customer.first_name }} {{ customer.last_name }}</td>
                 <td>{{ customer.email }}</td>
                 <td>{{ customer.erp_customer_name.replace('|', ', ') }}</td>
+                
+                {# #}
                 <td>
-                    {% if customer.is_active %}
-                    <span class="status-badge status-active">Active</span>
+                    {% if not customer.is_active %}
+                        <span class="status-badge status-inactive">Inactive</span>
+                    {% elif customer.must_reset_password %}
+                        <span class="status-badge status-pending">Pending User Reset</span>
                     {% else %}
-                    <span class="status-badge status-inactive">Inactive</span>
+                        <span class="status-badge status-active">Active</span>
                     {% endif %}
                 </td>
-                <td>{{ customer.last_login_date.strftime('%Y-%m-%d %H:%M') if customer.last_login_date else 'Never' }}</td>
+                
+                {# #}
+                <td>
+                    {% if not customer.is_active %}
+                        <span class="status-text-inactive">N/A</span>
+                    {% elif customer.must_reset_password %}
+                        {% if customer.last_login_date %}
+                            <span class="status-text-pending">Reset triggered</span>
+                        {% else %}
+                            <span class="status-text-new">Pending first login</span>
+                        {% endif %}
+                    {% else %}
+                        {{ customer.last_login_date.strftime('%Y-%m-%d %H:%M') if customer.last_login_date else 'Never' }}
+                    {% endif %}
+                </td>
+
                 <td>
                     <div class="actions">
                         <button class="btn btn-secondary btn-sm" onclick='openEditModal({{ customer | tojson | safe }})'>

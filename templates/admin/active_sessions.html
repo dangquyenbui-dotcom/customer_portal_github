@@ -49,8 +49,8 @@
                 <th>Customer</th>
                 <th>Email</th>
                 <th>IP Address</th>
-                <th>Last Seen (UTC)</th>
-                <th>Session Started (UTC)</th>
+                <th>Last Seen</th> {# #}
+                <th>Session Started</th> {# #}
                 <th style="min-width: 200px;">User Agent</th>
                 <th>Actions</th>
             </tr>
@@ -61,8 +61,9 @@
                 <td>{{ s.first_name }} {{ s.last_name }}</td>
                 <td>{{ s.email }}</td>
                 <td>{{ s.ip_address }}</td>
-                <td title="{{ s.last_seen }}">{{ s.last_seen.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-                <td title="{{ s.created_at }}">{{ s.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                {# #}
+                <td title="{{ s.last_seen }}">{{ s.last_seen.strftime('%Y-%m-%d %H:%M:%S %Z') }}</td>
+                <td title="{{ s.created_at }}">{{ s.created_at.strftime('%Y-%m-%d %H:%M:%S %Z') }}</td>
                 <td class="details-cell">{{ s.user_agent }}</td>
                 <td>
                     <button class="btn btn-secondary btn-sm btn-kick"

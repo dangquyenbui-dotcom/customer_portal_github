@@ -43,8 +43,8 @@ def send_welcome_email(to_email, first_name, temp_password):
         'email/welcome_email.html', # Use the new template
         first_name=first_name,
         temp_password=temp_password,
-        # Ensure LOGIN_URL uses APP_BASE_URL if set, otherwise default
-        login_url=os.getenv('APP_BASE_URL', 'http://localhost:5001') + '/login'
+        # === MODIFICATION: Hardcoded login URL per user request ===
+        login_url='https://info.wepackitall.net'
     )
 
     if not body_html:
@@ -109,8 +109,8 @@ def send_password_reset_email(to_email, first_name, temp_password):
         'email/password_reset.html',
         first_name=first_name,
         temp_password=temp_password,
-        # Ensure LOGIN_URL uses APP_BASE_URL if set, otherwise default
-        login_url=os.getenv('APP_BASE_URL', 'http://localhost:5001') + '/login'
+        # === MODIFICATION: Hardcoded login URL per user request ===
+        login_url='https://info.wepackitall.net'
     )
 
     if not body_html:

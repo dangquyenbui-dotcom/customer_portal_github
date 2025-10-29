@@ -6,6 +6,10 @@ from flask import Blueprint, render_template, request, jsonify, g
 from auth import admin_required
 from database.session_store import session_db
 from database.audit_log import audit_db
+# === NEW IMPORTS ===
+from zoneinfo import ZoneInfo
+from datetime import timezone
+# === END NEW IMPORTS ===
 
 admin_sessions_bp = Blueprint('admin_sessions', __name__)
 
@@ -16,6 +20,24 @@ def view_sessions():
     active_sessions = []
     try:
         active_sessions = session_db.get_all_active()
+        
+        # === NEW: Timezone Conversion ===
+        try:
+            pst_pdt_zone = ZoneInfo("America/Los_Angeles")
+            
+            for s in active_sessions:
+                # 1. Assume the DB time is naive UTC (from datetime.utcnow())
+                # 2. Set the timezone to UTC
+                # 3. Convert to the target PST/PDT timezone
+                if s.get('last_seen'):
+                    s['last_seen'] = s['last_seen'].replace(tzinfo=timezone.utc).astimezone(pst_pdt_zone)
+                if s.get('created_at'):
+                    s['created_at'] = s['created_at'].replace(tzinfo=timezone.utc).astimezone(pst_pdt_zone)
+        except Exception as tz_e:
+            print(f"⚠️ Error converting timezones: {tz_e}. Falling back to UTC.")
+            # If conversion fails, the template will just show UTC
+        # === END NEW ===
+
     except Exception as e:
         print(f"❌ Error fetching active sessions: {e}")
         # Handle error, maybe flash a message

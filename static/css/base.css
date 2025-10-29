@@ -471,6 +471,19 @@ textarea::placeholder {
     color: var(--status-inactive-text);
 }
 
+/* === NEW STATUS === */
+.status-pending {
+    background: var(--alert-info-bg);
+    color: var(--alert-info-text);
+}
+
+[data-theme="dark"] .status-pending {
+    background: var(--alert-info-bg); /* Use dark mode var */
+    color: var(--alert-info-text);  /* Use dark mode var */
+}
+/* === END NEW STATUS === */
+
+
 /* ===========================
    Alerts
    =========================== */

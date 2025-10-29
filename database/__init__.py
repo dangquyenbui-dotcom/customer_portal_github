@@ -8,8 +8,9 @@ from .connection import DatabaseConnection, get_db
 from .erp_connection_base import get_erp_db_connection
 from .erp_service import get_erp_service, close_erp_connection
 from .customer_data import CustomerDataDB, customer_db
-# === NEW IMPORT ===
 from .audit_log import AuditLogDB, audit_db
+# === NEW IMPORT ===
+from .session_store import SessionStoreDB, session_db
 
 __all__ = [
     # Connection helpers
@@ -24,7 +25,9 @@ __all__ = [
     # Local DB table managers (instances)
     'CustomerDataDB', # Class
     'customer_db',    # Instance
-    # === NEW EXPORT ===
     'AuditLogDB',
     'audit_db',
+    # === NEW EXPORT ===
+    'SessionStoreDB',
+    'session_db',
 ]

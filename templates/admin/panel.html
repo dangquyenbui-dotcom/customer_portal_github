@@ -6,16 +6,14 @@
 
 {# Override nav_links from base to show admin context #}
 {% block nav_links %}
-    <span style="color: white; margin-right: 15px;">Admin: {{ session.admin.username }}</span>
+    <span style="color: white; margin-right: 15px;">Admin: {{ g.admin.username }}</span>
     <a href="{{ url_for('admin_customers.manage_customers') }}">Manage Customers</a>
-    <!-- === NEW LINK === -->
     <a href="{{ url_for('admin_audit.view_audit_log') }}">Audit Log</a>
-    <!-- === END NEW === -->
+    <a href="{{ url_for('admin_sessions.view_sessions') }}">Active Sessions</a>
     <a href="{{ url_for('main.admin_logout') }}">Admin Logout</a>
 {% endblock %}
 
 {% block styles %}
-{# admin.css is already included in base.html #}
 <style>
     /* Styles are inherited from admin.css */
 </style>
@@ -34,29 +32,24 @@
         <div class="admin-desc">Add, edit, and manage customer portal access.</div>
     </a>
 
-    <!-- === NEW CARD === -->
     <a href="{{ url_for('admin_audit.view_audit_log') }}" class="admin-card">
         <div class="admin-icon">📜</div>
         <div class="admin-title">Audit Log</div>
         <div class="admin-desc">View history of administrative actions.</div>
     </a>
-    <!-- === END NEW === -->
-
-    {# Placeholder for future admin functions #}
+    
+    <a href="{{ url_for('admin_sessions.view_sessions') }}" class="admin-card">
+        <div class="admin-icon">📡</div>
+        <div class="admin-title">Active Sessions</div>
+        <div class="admin-desc">View and manage active customer sessions.</div>
+    </a>
     <a href="#" class="admin-card disabled">
         <div class="admin-icon">📊</div>
         <div class="admin-title">Usage Analytics (Future)</div>
         <div class="admin-desc">View customer login and activity statistics.</div>
     </a>
-     <a href="#" class="admin-card disabled">
-        <div class="admin-icon">⚙️</div>
-        <div class="admin-title">Settings (Future)</div>
-        <div class="admin-desc">Configure portal-wide settings.</div>
-    </a>
-
 </div>
 {% endblock %}
 
 {% block scripts %}
-{# No specific JS needed for the basic admin panel yet #}
 {% endblock %}

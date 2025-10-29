@@ -3,41 +3,43 @@
 Main routes for Customer Portal (Login, Logout, Admin Login)
 """
 
-from flask import Blueprint, render_template, redirect, url_for, session, request, flash, jsonify
+from flask import Blueprint, render_template, redirect, url_for, session, request, flash, jsonify, g
 from auth import authenticate_customer, authenticate_admin, login_required
 from config import Config
 from utils import get_client_info, validate_password 
 from database.customer_data import customer_db 
+# === NEW IMPORTS ===
+from database import session_db, audit_db
+import secrets
+# === END NEW IMPORTS ===
 
 main_bp = Blueprint('main', __name__)
 
 @main_bp.route('/')
 def index():
     """Redirects logged-in customers to inventory, others to login."""
-    if 'customer' in session:
-        if session.get('customer', {}).get('must_reset_password', False):
+    # === MODIFICATION: Check g.customer ===
+    if hasattr(g, 'customer') and g.customer:
+        if g.customer.get('must_reset_password', False):
             return redirect(url_for('main.force_password_change'))
         return redirect(url_for('inventory.view_inventory'))
-    elif 'admin' in session:
+    elif hasattr(g, 'admin') and g.admin:
          return redirect(url_for('admin_panel.panel')) 
     return redirect(url_for('main.login'))
 
 @main_bp.route('/login', methods=['GET', 'POST'])
 def login():
     """Handles customer login."""
-    if 'customer' in session:
-        if session.get('customer', {}).get('must_reset_password', False):
+    # === MODIFICATION: Check g.customer ===
+    if hasattr(g, 'customer') and g.customer:
+        if g.customer.get('must_reset_password', False):
             return redirect(url_for('main.force_password_change'))
         return redirect(url_for('inventory.view_inventory')) 
 
     if request.method == 'POST':
-        # === NEW: Honeypot Check ===
-        # This 'hp_email' field is hidden from users. If it's filled out,
-        # it's a bot. We silently fail by just re-rendering the page.
         if request.form.get('hp_email'):
             print("❌ [Bot] Honeypot field filled on customer login page. Bot detected.")
             return render_template('login.html', email=request.form.get('email', ''))
-        # === END NEW ===
 
         email = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
@@ -49,7 +51,8 @@ def login():
         customer_info = authenticate_customer(email, password)
 
         if customer_info:
-            session.permanent = True 
+            session.permanent = True
+            # === MODIFICATION: Store minimal info in cookie ===
             session['customer'] = {
                 'customer_id': customer_info['customer_id'],
                 'email': customer_info['email'],
@@ -58,6 +61,29 @@ def login():
                 'erp_customer_name': customer_info['erp_customer_name'],
                 'must_reset_password': customer_info.get('must_reset_password', False)
             }
+            
+            # === NEW: Create Database Session ===
+            new_session_id = secrets.token_urlsafe(32)
+            session['customer_session_id'] = new_session_id # Store ID in cookie
+            
+            ip, ua = get_client_info()
+            
+            # Store the full session in the database
+            session_db.create_or_update(
+                new_session_id,
+                customer_info['customer_id'],
+                ip,
+                ua
+            )
+            
+            # Log the login event
+            audit_db.log_event(
+                action_type='CUSTOMER_LOGIN',
+                target_customer_id=customer_info['customer_id'],
+                target_customer_email=customer_info['email'],
+                details=f"Login from IP: {ip}"
+            )
+            # === END NEW SESSION LOGIC ===
             
             print(f"✅ Customer logged in: {customer_info['email']}")
             
@@ -78,7 +104,24 @@ def login():
 @login_required 
 def logout():
     """Logs out the customer."""
-    customer_email = session.get('customer', {}).get('email', 'Unknown Customer')
+    # === MODIFICATION: Get info from g and delete DB session ===
+    customer_email = g.customer.get('email', 'Unknown Customer')
+    customer_id = g.customer.get('customer_id')
+    session_id = session.get('customer_session_id')
+
+    # Delete from DB
+    if session_id:
+        session_db.delete(session_id)
+        
+    # Log the logout
+    audit_db.log_event(
+        action_type='CUSTOMER_LOGOUT',
+        target_customer_id=customer_id,
+        target_customer_email=customer_email,
+        details="Customer logged out."
+    )
+    
+    # Clear the cookie
     session.clear()
     flash('You have been successfully logged out.', 'success')
     print(f"🚪 Customer logged out: {customer_email}")
@@ -90,10 +133,12 @@ def force_password_change():
     """
     Shows a page forcing the user to change their password.
     """
-    if not session.get('customer', {}).get('must_reset_password', False):
+    # === MODIFICATION: Check g.customer ===
+    if not g.customer.get('must_reset_password', False):
         return redirect(url_for('inventory.view_inventory'))
         
     if request.method == 'POST':
+        # ... (form validation is unchanged) ...
         new_password = request.form.get('new_password')
         confirm_password = request.form.get('confirm_password')
         
@@ -106,12 +151,16 @@ def force_password_change():
             flash(error_msg, 'error')
             return render_template('force_change_password.html')
             
-        customer_id = session['customer']['customer_id']
+        # === MODIFICATION: Get ID from g.customer ===
+        customer_id = g.customer['customer_id']
         success = customer_db.reset_password(customer_id, new_password)
         
         if success:
+            # === MODIFICATION: Update session and g.customer ===
             session['customer']['must_reset_password'] = False
-            session.modified = True 
+            session.modified = True
+            g.customer['must_reset_password'] = False # Update g
+            # === END MODIFICATION ===
             flash('Your password has been updated successfully.', 'success')
             return redirect(url_for('inventory.view_inventory'))
         else:
@@ -124,15 +173,15 @@ def force_password_change():
 @main_bp.route('/admin-login', methods=['GET', 'POST'])
 def admin_login():
     """Handles admin login."""
-    if 'admin' in session:
+    # === MODIFICATION: Check g.admin ===
+    if hasattr(g, 'admin') and g.admin:
         return redirect(url_for('admin_panel.panel')) 
 
     if request.method == 'POST':
-        # === NEW: Honeypot Check ===
+        # ... (honeypot check unchanged) ...
         if request.form.get('hp_email'):
             print("❌ [Bot] Honeypot field filled on admin login page. Bot detected.")
             return render_template('admin_login.html', username=request.form.get('username', ''))
-        # === END NEW ===
 
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
@@ -145,7 +194,8 @@ def admin_login():
 
         if admin_info:
             session.permanent = True
-            session['admin'] = admin_info 
+            session['admin'] = admin_info
+            g.admin = admin_info # === MODIFICATION: Set g.admin ===
             print(f"🔑 Admin logged in: {username} (Method: {admin_info.get('auth_method', 'unknown')})")
             return redirect(url_for('admin_panel.panel'))
         else:
@@ -158,8 +208,10 @@ def admin_login():
 @main_bp.route('/admin-logout')
 def admin_logout():
     """Logs out the admin."""
-    admin_user = session.get('admin', {}).get('username', 'Unknown Admin')
-    session.pop('admin', None) 
+    # === MODIFICATION: Get username from g.admin ===
+    admin_user = g.admin.get('username', 'Unknown Admin') if hasattr(g, 'admin') and g.admin else 'Unknown Admin'
+    session.pop('admin', None)
+    g.admin = None # === MODIFICATION: Clear g.admin ===
     flash('Administrator logged out.', 'success')
     print(f"🚪 Admin logged out: {admin_user}")
     return redirect(url_for('main.admin_login'))

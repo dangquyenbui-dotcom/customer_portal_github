@@ -3,7 +3,7 @@
 Routes for customer inventory viewing.
 """
 
-from flask import Blueprint, render_template, session, redirect, url_for, flash, jsonify, send_file, request
+from flask import Blueprint, render_template, session, redirect, url_for, flash, jsonify, send_file, request, g
 from auth import login_required # Use the customer login decorator
 from database import get_erp_service
 import openpyxl
@@ -21,8 +21,8 @@ def view_inventory():
     inventory_data = []
     error_message = None
 
-    # Get the ERP customer name stored in the session during login
-    erp_customer_name = session.get('customer', {}).get('erp_customer_name')
+    # === MODIFICATION: Get ERP name from g.customer ===
+    erp_customer_name = g.customer.get('erp_customer_name')
 
     if not erp_customer_name:
         flash('Customer identity not found in session. Please log in again.', 'error')
@@ -35,26 +35,24 @@ def view_inventory():
         flash(error_message, 'error')
         traceback.print_exc() # Log the full error for debugging
 
-    # Extract unique values for filters BEFORE passing to template
+    # ... (rest of file is unchanged) ...
     parts = sorted(list(set(item.get('Part', '') for item in inventory_data if item.get('Part'))))
     bins = sorted(list(set(item.get('BIN', '') for item in inventory_data if item.get('BIN'))))
-    # --- NEW: Add Status filter ---
     statuses = sorted(list(set(item.get('Status', '') for item in inventory_data if item.get('Status'))))
 
     return render_template(
         'inventory_view.html',
         inventory_data=inventory_data,
         error_message=error_message,
-        # Pass filter options
         filter_parts=parts,
         filter_bins=bins,
-        filter_statuses=statuses # --- NEW ---
+        filter_statuses=statuses
     )
 
 @inventory_bp.route('/api/export-xlsx', methods=['POST'])
 @login_required # Protect this route
 def export_inventory_xlsx():
-    """API endpoint to export the visible inventory data to an XLSX file."""
+    # ... (this function needs no changes, as @login_required protects it) ...
     try:
         data = request.get_json()
         headers = data.get('headers', [])
@@ -69,26 +67,24 @@ def export_inventory_xlsx():
         ws.append(headers)
 
         for row_data in rows:
-            # Attempt to convert numeric-like strings, keep others as is
             processed_row = []
             for cell_value in row_data:
                 if isinstance(cell_value, str):
-                    cleaned_value = cell_value.replace(',', '') # Handle thousands separators
+                    cleaned_value = cell_value.replace(',', '')
                     try:
-                        # Try float first for quantities
                         processed_row.append(float(cleaned_value))
                     except ValueError:
-                         # Keep as string if not a simple number (like dates, lots, text)
                         processed_row.append(cell_value)
                 else:
-                    processed_row.append(cell_value) # Append non-strings directly
+                    processed_row.append(cell_value)
             ws.append(processed_row)
 
         output = BytesIO()
         wb.save(output)
         output.seek(0)
 
-        customer_name = session.get('customer', {}).get('erp_customer_name', 'Export').replace(' ', '_')
+        # === MODIFICATION: Get name from g.customer ===
+        customer_name = g.customer.get('erp_customer_name', 'Export').replace(' ', '_')
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"Inventory_{customer_name}_{timestamp}.xlsx"
 

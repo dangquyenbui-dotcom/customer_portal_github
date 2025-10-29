@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}Active Sessions - Admin{% endblock %}
+
+{% block navbar_title %}📡 Active Sessions{% endblock %}
+
+{% block nav_links %}
+    <span style="color: white; margin-right: 15px;">Admin: {{ g.admin.username }}</span>
+    <a href="{{ url_for('admin_panel.panel') }}">Admin Dashboard</a>
+    <a href="{{ url_for('admin_customers.manage_customers') }}">Manage Customers</a>
+    <a href="{{ url_for('admin_audit.view_audit_log') }}">Audit Log</a>
+    <a href="{{ url_for('main.admin_logout') }}">Admin Logout</a>
+{% endblock %}
+
+{% block styles %}
+<style>
+    /* Add a style for the kick button */
+    .btn-kick {
+        background: var(--accent-orange);
+        color: white;
+    }
+    .btn-kick:hover {
+        background: var(--accent-red);
+    }
+    .details-cell {
+        max-width: 250px;
+        white-space: normal;
+        word-break: break-all;
+        font-size: 12px;
+        color: var(--text-tertiary);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="header-card">
+    <h1>Active Customer Sessions</h1>
+    <p>View customers currently logged into the portal. Sessions update on each page load.</p>
+</div>
+
+<div id="alerts"></div>
+
+<div class="data-table">
+    {% if sessions %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Customer</th>
+                <th>Email</th>
+                <th>IP Address</th>
+                <th>Last Seen (UTC)</th>
+                <th>Session Started (UTC)</th>
+                <th style="min-width: 200px;">User Agent</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in sessions %}
+            <tr id="session-row-{{ s.session_id }}">
+                <td>{{ s.first_name }} {{ s.last_name }}</td>
+                <td>{{ s.email }}</td>
+                <td>{{ s.ip_address }}</td>
+                <td title="{{ s.last_seen }}">{{ s.last_seen.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                <td title="{{ s.created_at }}">{{ s.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                <td class="details-cell">{{ s.user_agent }}</td>
+                <td>
+                    <button class="btn btn-secondary btn-sm btn-kick"
+                            id="kick-btn-{{ s.session_id }}"
+                            onclick="kickSession('{{ s.session_id }}', '{{ s.customer_id }}', '{{ s.email }}', '{{ s.first_name }} {{ s.last_name }}', this)">
+                        🚫 Kick Session
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-state-icon">📡</div>
+        <h3>No Active Sessions</h3>
+        <p>There are currently no customers logged in.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function kickSession(sessionId, customerId, customerEmail, customerName, buttonElement) {
+    if (!confirm(`Are you sure you want to end the session for "${customerName}"?\n\nThey will be forced to log in again.`)) {
+        return;
+    }
+
+    const originalText = buttonElement.innerHTML;
+    buttonElement.disabled = true;
+    buttonElement.innerHTML = 'Ending...';
+
+    fetch(`/admin/sessions/kick`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            session_id: sessionId,
+            customer_id: customerId,
+            customer_email: customerEmail
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            dtUtils.showAlert(data.message, 'success');
+            // Remove the row from the table
+            const row = document.getElementById(`session-row-${sessionId}`);
+            if (row) {
+                row.remove();
+            }
+        } else {
+            dtUtils.showAlert(data.message, 'error');
+            buttonElement.disabled = false;
+            buttonElement.innerHTML = originalText;
+        }
+    })
+    .catch(error => {
+        console.error('Kick Session error:', error);
+        dtUtils.showAlert('An error occurred while ending the session.', 'error');
+        buttonElement.disabled = false;
+        buttonElement.innerHTML = originalText;
+    });
+}
+</script>
+{% endblock %}

@@ -4,7 +4,7 @@ Customer Portal Authentication Module
 Handles customer and admin login/authorization.
 """
 
-from flask import session, redirect, url_for, flash, request
+from flask import session, redirect, url_for, flash, request, g
 from functools import wraps
 from werkzeug.security import check_password_hash
 from database.customer_data import customer_db # Import the instance
@@ -18,15 +18,22 @@ def authenticate_customer(email, password):
     return customer_db.verify_password(email, password)
 
 def login_required(f):
-    """Decorator to ensure a customer is logged in."""
+    """
+    Decorator to ensure a customer is logged in.
+    Relies on g.customer being set by the @app.before_request hook.
+    """
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if 'customer' not in session:
+        # === MODIFICATION: Check g.customer, not session ===
+        # g.customer is populated by the app.before_request hook
+        # if the session cookie is valid AND the session is in the DB
+        if not hasattr(g, 'customer') or g.customer is None:
             flash('Please log in to access this page.', 'warning')
             session['next_url'] = request.url
             return redirect(url_for('main.login'))
         
-        must_reset = session.get('customer', {}).get('must_reset_password', False)
+        # === MODIFICATION: Get reset flag from g.customer ===
+        must_reset = g.customer.get('must_reset_password', False)
         
         allowed_endpoints = ('main.force_password_change', 'main.logout')
         
@@ -39,6 +46,7 @@ def login_required(f):
 
 # --- Admin Authentication ---
 
+# ... (rest of file is unchanged) ...
 def authenticate_admin(username, password):
     """
     Authenticates an admin user.
@@ -57,24 +65,19 @@ def authenticate_admin(username, password):
     if Config.AD_SERVER:
         print(f"ℹ️  [Admin Auth] Local auth failed for {username}. Trying Active Directory...")
         
-        # === MODIFIED: Simpler, more robust trimming ===
         ad_username = username.strip() # Start with the stripped, entered username
         
-        # If the username contains an "@", assume it's an email and take the part before it.
         if '@' in ad_username:
             original_username = ad_username
             ad_username = ad_username.split('@')[0]
             print(f"ℹ️  [Admin Auth] Trimmed email input '{original_username}' to AD username: {ad_username}")
-        # === END MODIFIED ===
 
-        # Pass the processed 'ad_username' to the AD check
         ad_admin_info = check_ad_admin_auth(ad_username, password) 
         
         if ad_admin_info:
             print(f"✅ [Admin Auth] AD admin logged in: {ad_username}")
             return ad_admin_info # This dict already contains 'is_admin': True
         else:
-            # Log the reason for AD failure
             print(f"ℹ️  [Admin Auth] AD login failed for: {ad_username}.")
     
     # --- 3. If both fail ---
@@ -85,9 +88,9 @@ def admin_required(f):
     """Decorator to ensure an admin is logged in."""
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # This logic remains perfectly the same, as it just checks the session key
-        if 'admin' not in session or not session['admin'].get('is_admin'):
-            if 'customer' in session:
+        # === MODIFICATION: Check g.admin ===
+        if not hasattr(g, 'admin') or g.admin is None or not g.admin.get('is_admin'):
+            if hasattr(g, 'customer') and g.customer: # Check g.customer
                  flash('You do not have permission to access the admin area.', 'error')
                  return redirect(url_for('inventory.view_inventory'))
             else:

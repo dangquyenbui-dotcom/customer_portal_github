@@ -175,12 +175,12 @@ def initialize_database_connections(app):
                 # Trigger table creation checks by instantiating
                 from database import customer_db, audit_db, session_db, analytics_db
                 
-                # === NEW: Explicitly call ensure_tables ===
-                customer_db.ensure_tables()
-                audit_db.ensure_tables()
-                session_db.ensure_tables()
+                # === FIX: Corrected method names ===
+                customer_db.ensure_tables() # Plural
+                audit_db.ensure_table()     # Singular
+                session_db.ensure_table()   # Singular
                 # analytics_db has no table, so it's skipped
-                # === END NEW ===
+                # === END FIX ===
                 
                 print("✅ Local DB Tables (Customers, AuditLog, ActiveSessions) Checked/Created.")
             else:

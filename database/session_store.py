@@ -13,7 +13,7 @@ class SessionStoreDB:
 
     def __init__(self):
         # === MODIFICATION: Do not store db instance ===
-        # self.db = get_db()
+        # self.db = get_db() 
         # === MODIFICATION: REMOVE ensure_tables() call ===
         # self.ensure_table()
         pass # Init does nothing now
@@ -30,7 +30,11 @@ class SessionStoreDB:
                     last_seen DATETIME NOT NULL,
                     ip_address NVARCHAR(100) NULL,
                     user_agent NVARCHAR(500) NULL,
-                    created_at DATETIME DEFAULT GETDATE() NOT NULL,
+                    
+                    -- === MODIFICATION: Use GETUTCDATE() for consistency ===
+                    created_at DATETIME DEFAULT GETUTCDATE() NOT NULL,
+                    -- === END MODIFICATION ===
+                    
                     CONSTRAINT FK_Session_Customer FOREIGN KEY (customer_id) 
                         REFERENCES Customers(customer_id)
                         ON DELETE CASCADE
@@ -45,22 +49,34 @@ class SessionStoreDB:
 
     def create_or_update(self, session_id, customer_id, ip_address, user_agent):
         """Creates or updates a session in the database."""
-        db = get_db() # === ADDED ===
-        now = datetime.utcnow()
+        db = get_db()
+        # This one variable will be used for BOTH last_seen and created_at
+        now_utc = datetime.utcnow() 
+        
+        # === MODIFICATION: Explicitly set created_at on INSERT ===
         # Use MERGE for an atomic "upsert" (update or insert)
         query = """
             MERGE INTO ActiveSessions AS T
-            USING (VALUES (?, ?, ?, ?, ?)) AS S (session_id, customer_id, ip_address, user_agent, last_seen)
+            USING (VALUES (?, ?, ?, ?, ?)) AS S (session_id, customer_id, ip_address, user_agent, now_utc)
             ON (T.session_id = S.session_id)
+            
+            -- When session exists, just update last_seen and info
             WHEN MATCHED THEN
-                UPDATE SET T.last_seen = S.last_seen, T.ip_address = S.ip_address, T.user_agent = S.user_agent
+                UPDATE SET 
+                    T.last_seen = S.now_utc, 
+                    T.ip_address = S.ip_address, 
+                    T.user_agent = S.user_agent
+            
+            -- When session is new, explicitly insert ALL columns, including created_at
             WHEN NOT MATCHED THEN
-                INSERT (session_id, customer_id, ip_address, user_agent, last_seen)
-                VALUES (S.session_id, S.customer_id, S.ip_address, S.user_agent, S.last_seen);
+                INSERT (session_id, customer_id, ip_address, user_agent, last_seen, created_at)
+                VALUES (S.session_id, S.customer_id, S.ip_address, S.user_agent, S.now_utc, S.now_utc);
         """
-        params = (session_id, customer_id, ip_address, user_agent, now)
+        # The params tuple now correctly matches the 5 values in the USING clause
+        params = (session_id, customer_id, ip_address, user_agent, now_utc)
+        # === END MODIFICATION ===
         try:
-            return db.execute_query(query, params) # === MODIFIED ===
+            return db.execute_query(query, params)
         except Exception as e:
             print(f"❌ [SessionDB] Error in create_or_update: {e}")
             return False

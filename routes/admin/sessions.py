@@ -6,10 +6,10 @@ from flask import Blueprint, render_template, request, jsonify, g, current_app, 
 from auth import admin_required
 from database.session_store import session_db
 from database.audit_log import audit_db
-# === NEW IMPORTS ===
-from zoneinfo import ZoneInfo
+# === MODIFIED IMPORTS: Use pytz for timezone ===
+import pytz # Bundles IANA timezone data, works on Windows
 from datetime import timezone
-# === END NEW IMPORTS ===
+# === END MODIFIED IMPORTS ===
 
 admin_sessions_bp = Blueprint('admin_sessions', __name__)
 
@@ -43,22 +43,29 @@ def view_sessions():
     try:
         active_sessions = session_db.get_all_active()
         
-        # === NEW: Timezone Conversion ===
+        # === MODIFIED: Timezone Conversion using pytz ===
         try:
-            pst_pdt_zone = ZoneInfo("America/Los_Angeles")
+            # Use pytz to get the timezone. This works on Windows.
+            pst_pdt_zone = pytz.timezone("America/Los_Angeles")
             
             for s in active_sessions:
                 # 1. Assume the DB time is naive UTC (from datetime.utcnow())
-                # 2. Set the timezone to UTC
+                # 2. Make it timezone-aware by setting its tzinfo to UTC
                 # 3. Convert to the target PST/PDT timezone
                 if s.get('last_seen'):
-                    s['last_seen'] = s['last_seen'].replace(tzinfo=timezone.utc).astimezone(pst_pdt_zone)
+                    # Add UTC timezone info
+                    utc_last_seen = s['last_seen'].replace(tzinfo=pytz.utc)
+                    # Convert to target timezone
+                    s['last_seen'] = utc_last_seen.astimezone(pst_pdt_zone)
                 if s.get('created_at'):
-                    s['created_at'] = s['created_at'].replace(tzinfo=timezone.utc).astimezone(pst_pdt_zone)
+                    # Add UTC timezone info
+                    utc_created_at = s['created_at'].replace(tzinfo=pytz.utc)
+                    # Convert to target timezone
+                    s['created_at'] = utc_created_at.astimezone(pst_pdt_zone)
         except Exception as tz_e:
-            print(f"⚠️ Error converting timezones: {tz_e}. Falling back to UTC.")
+            print(f"⚠️ Error converting timezones with pytz: {tz_e}. Falling back to UTC.")
             # If conversion fails, the template will just show UTC
-        # === END NEW ===
+        # === END MODIFIED ===
 
     except Exception as e:
         print(f"❌ Error fetching active sessions: {e}")

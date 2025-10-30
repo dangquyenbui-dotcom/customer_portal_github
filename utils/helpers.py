@@ -12,14 +12,20 @@ def get_client_info():
     Get client IP address and user agent for logging
     Returns: tuple: (ip_address, user_agent)
     """
+    # === MODIFICATION: Prioritize Cloudflare header ===
     # Try common headers for IP, falling back to remote_addr
-    headers_to_check = ['X-Forwarded-For', 'X-Real-IP']
-    ip = request.remote_addr # Default
+    # 'CF-Connecting-IP' is added first for Cloudflare Tunnel
+    headers_to_check = ['CF-Connecting-IP', 'X-Forwarded-For', 'X-Real-IP']
+    # === END MODIFICATION ===
+    
+    ip = request.remote_addr # Default (e.g., the proxy's IP)
+    
     for header in headers_to_check:
         value = request.headers.get(header)
         if value:
             # Take the first IP if multiple are present (e.g., in X-Forwarded-For)
             ip = value.split(',')[0].strip()
+            print(f"ℹ️ [IP_Check] Found IP in header '{header}': {ip}") # Add log
             break
             
     user_agent = request.headers.get('User-Agent', '')[:500]  # Limit to 500 chars

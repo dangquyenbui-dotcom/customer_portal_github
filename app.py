@@ -26,6 +26,10 @@ def create_app():
     app.config['SESSION_COOKIE_SECURE'] = os.getenv('FLASK_ENV') == 'production' 
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    
+    # === NEW: Global state for auto-kicking ===
+    app.config['AUTO_KICK_ENABLED'] = False
+    # === END NEW ===
 
     app.static_folder = 'static'
     app.static_url_path = '/static'

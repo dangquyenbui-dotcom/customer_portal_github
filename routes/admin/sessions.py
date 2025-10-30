@@ -2,7 +2,7 @@
 """
 Admin route for viewing and managing active sessions.
 """
-from flask import Blueprint, render_template, request, jsonify, g
+from flask import Blueprint, render_template, request, jsonify, g, current_app, flash
 from auth import admin_required
 from database.session_store import session_db
 from database.audit_log import audit_db
@@ -17,6 +17,28 @@ admin_sessions_bp = Blueprint('admin_sessions', __name__)
 @admin_required
 def view_sessions():
     """Displays the active sessions page."""
+    
+    # === NEW: Auto-prune logic ===
+    auto_kick_enabled = current_app.config.get('AUTO_KICK_ENABLED', False)
+    if auto_kick_enabled:
+        print("ℹ️ [Admin Sessions] Auto-kick is ON. Pruning sessions > 3 hours old.")
+        try:
+            kicked_sessions = session_db.prune_by_hours(hours=3)
+            if kicked_sessions:
+                # Log each kick
+                for kicked in kicked_sessions:
+                    audit_db.log_event(
+                        action_type='CUSTOMER_SESSION_KICK',
+                        target_customer_id=kicked.get('customer_id'),
+                        target_customer_email=kicked.get('target_customer_email'),
+                        details="Auto-kicked session: inactive for > 3 hours."
+                    )
+                flash(f"Auto-kicked {len(kicked_sessions)} inactive session(s).", 'info')
+        except Exception as e:
+            print(f"❌ Error during auto-prune: {e}")
+            flash("An error occurred during automatic session pruning.", 'error')
+    # === END NEW ===
+
     active_sessions = []
     try:
         active_sessions = session_db.get_all_active()
@@ -40,12 +62,55 @@ def view_sessions():
 
     except Exception as e:
         print(f"❌ Error fetching active sessions: {e}")
-        # Handle error, maybe flash a message
+        flash("Error fetching active sessions.", "error")
     
     return render_template(
         'admin/active_sessions.html',
-        sessions=active_sessions
+        sessions=active_sessions,
+        auto_kick_enabled=auto_kick_enabled # Pass state to template
     )
+
+# === NEW ROUTE ===
+@admin_sessions_bp.route('/sessions/set-autokick', methods=['POST'])
+@admin_required
+def set_autokick():
+    """Sets the auto-kick configuration."""
+    data = request.get_json()
+    enabled = data.get('enabled', False)
+    
+    current_app.config['AUTO_KICK_ENABLED'] = enabled
+    status_str = "ENABLED" if enabled else "DISABLED"
+    
+    audit_db.log_event(
+        action_type='SYSTEM_SETTING_CHANGE',
+        details=f"Admin {g.admin.get('username')} {status_str} 3-hour session auto-kick."
+    )
+    print(f"ℹ️ [Admin Sessions] Auto-kick set to: {status_str}")
+
+    kicked_count = 0
+    if enabled:
+        # Also run a prune immediately
+        try:
+            kicked_sessions = session_db.prune_by_hours(hours=3)
+            kicked_count = len(kicked_sessions)
+            if kicked_sessions:
+                for kicked in kicked_sessions:
+                    audit_db.log_event(
+                        action_type='CUSTOMER_SESSION_KICK',
+                        target_customer_id=kicked.get('customer_id'),
+                        target_customer_email=kicked.get('target_customer_email'),
+                        details="Kicked on enable: inactive for > 3 hours."
+                    )
+        except Exception as e:
+            print(f"❌ Error during prune-on-enable: {e}")
+            return jsonify({'success': False, 'message': f'Setting saved, but an error occurred during pruning: {e}'}), 500
+
+    return jsonify({
+        'success': True, 
+        'message': f'Auto-kick {status_str}. {kicked_count} session(s) pruned.',
+        'newState': status_str
+    })
+# === END NEW ROUTE ===
 
 @admin_sessions_bp.route('/sessions/kick', methods=['POST'])
 @admin_required

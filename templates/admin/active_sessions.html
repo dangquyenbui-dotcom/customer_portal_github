@@ -30,13 +30,77 @@
         font-size: 12px;
         color: var(--text-tertiary);
     }
+
+    /* === NEW: Styles for Auto-Kick Toggle === */
+    .header-card {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: 15px;
+    }
+    .autokick-toggle-wrapper {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 15px;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-primary);
+        border-radius: 8px;
+    }
+    .autokick-toggle-wrapper label {
+        font-weight: 500;
+        color: var(--text-secondary);
+        margin-bottom: 0;
+        cursor: pointer;
+    }
+    
+    /* This is the fix:
+      We are NOT redefining .theme-toggle. We are just adding
+      *specific overrides* for the toggle inside .autokick-toggle-wrapper
+    */
+    
+    /* Set a base background for the auto-kick toggle (it's not the default) */
+    .autokick-toggle-wrapper .theme-toggle {
+         background: var(--border-secondary);
+         flex-shrink: 0; /* Prevent toggle from shrinking */
+    }
+    
+    /* Set a base background for the auto-kick slider in dark mode */
+    [data-theme="dark"] .autokick-toggle-wrapper .theme-toggle-slider {
+        background: #333;
+    }
+
+    /* Make the slider GREEN *only* for the auto-kick toggle */
+    .autokick-toggle-wrapper .theme-toggle input:checked + .theme-toggle-slider {
+        background-color: var(--accent-green);
+    }
+    
+    /* Make the track GREEN *only* for the auto-kick toggle */
+    .autokick-toggle-wrapper .theme-toggle input:checked ~ .theme-toggle { /* Use ~ sibling combinator */
+        background-color: rgba(72, 187, 120, 0.4);
+    }
+    /* === END NEW === */
+
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="header-card">
-    <h1>Active Customer Sessions</h1>
-    <p>View customers currently logged into the portal. Sessions update on each page load.</p>
+    <div> {# Wrapper for text content #}
+        <h1>Active Customer Sessions</h1>
+        <p>View customers currently logged into the portal. Sessions update on each page load.</p>
+    </div>
+    
+    {# === NEW: Auto-Kick Toggle Switch === #}
+    <div class="autokick-toggle-wrapper">
+        <label for="autoKickToggle">Auto-Kick > 3 Hours Inactive</label>
+        <label class="theme-toggle">
+            <input type="checkbox" id="autoKickToggle" {% if auto_kick_enabled %}checked{% endif %}>
+            <span class="theme-toggle-slider"></span>
+        </label>
+    </div>
+    {# === END NEW === #}
 </div>
 
 <div id="alerts"></div>
@@ -130,5 +194,48 @@ function kickSession(sessionId, customerId, customerEmail, customerName, buttonE
         buttonElement.innerHTML = originalText;
     });
 }
+
+// === NEW: Auto-Kick Toggle Logic ===
+document.addEventListener('DOMContentLoaded', function() {
+    const autoKickToggle = document.getElementById('autoKickToggle');
+    if (autoKickToggle) {
+        autoKickToggle.addEventListener('change', function() {
+            const isEnabled = this.checked;
+            const toggle = this;
+            toggle.disabled = true; // Disable toggle during request
+
+            fetch(`/admin/sessions/set-autokick`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    enabled: isEnabled
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    dtUtils.showAlert(data.message, 'success');
+                    // Reload the page to show the pruned list and updated toggle
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000); // Wait 1 sec for user to read alert
+                } else {
+                    dtUtils.showAlert(data.message, 'error');
+                    toggle.checked = !isEnabled; // Revert checkbox on failure
+                    toggle.disabled = false;
+                }
+            })
+            .catch(error => {
+                console.error('Auto-kick toggle error:', error);
+                dtUtils.showAlert('An error occurred setting auto-kick state.', 'error');
+                toggle.checked = !isEnabled; // Revert checkbox on failure
+                toggle.disabled = false;
+            });
+        });
+    }
+});
+// === END NEW ===
 </script>
 {% endblock %}

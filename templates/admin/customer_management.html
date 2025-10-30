@@ -107,6 +107,29 @@
     .status-text-inactive {
         color: var(--text-tertiary);
     }
+
+    /* === NEW: Smart table column resizing === */
+    #customerTableBody tr td:nth-child(3) { /* ERP Customer Name(s) */
+        font-size: 13px;
+        color: var(--text-tertiary);
+        max-width: 350px; /* Stop it from dominating the table */
+        white-space: normal; /* Allow wrapping */
+        word-break: break-word; /* Break long names */
+        line-height: 1.4;
+    }
+
+    #customerTableBody tr td:nth-child(4), /* Account Status */
+    #customerTableBody tr td:nth-child(5) { /* Last Activity */
+        white-space: nowrap; /* Prevent wrapping for status text */
+    }
+    
+    #customerTableBody tr td:nth-child(6) .actions { /* Actions Column */
+        display: flex; /* Use flexbox for button layout */
+        flex-wrap: nowrap; /* Force buttons onto one line */
+        gap: 5px; /* Add a small gap between buttons */
+    }
+    /* === END NEW === */
+
 </style>
 {% endblock %}
 

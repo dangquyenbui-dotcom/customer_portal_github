@@ -99,17 +99,54 @@ class SessionStoreDB:
         """
         return db.execute_query(query) # === MODIFIED ===
 
+    # === NEW METHOD ===
+    def prune_by_hours(self, hours):
+        """
+        Removes sessions older than N hours and returns a list
+        of customers who were kicked.
+        """
+        db = get_db()
+        cutoff = datetime.utcnow() - timedelta(hours=hours)
+        
+        # Step 1: Find sessions to be pruned and get their info for logging
+        # We need to join with Customers to get email
+        find_query = """
+            SELECT 
+                s.session_id, 
+                s.customer_id, 
+                c.email AS target_customer_email
+            FROM ActiveSessions s
+            LEFT JOIN Customers c ON s.customer_id = c.customer_id
+            WHERE s.last_seen < ?
+        """
+        sessions_to_prune = db.execute_query(find_query, (cutoff,))
+        
+        if not sessions_to_prune:
+            return [] # Nothing to do
+        
+        # Step 2: Delete them
+        session_ids = [s['session_id'] for s in sessions_to_prune]
+        # Create placeholders for the IN clause
+        placeholders = ','.join('?' for _ in session_ids)
+        delete_query = f"DELETE FROM ActiveSessions WHERE session_id IN ({placeholders})"
+        
+        try:
+            success = db.execute_query(delete_query, session_ids)
+            if success:
+                print(f"ℹ️ [SessionDB] Pruned {len(sessions_to_prune)} sessions older than {hours} hours.")
+                return sessions_to_prune # Return list of kicked users
+            else:
+                print("⚠️ [SessionDB] Prune delete query failed.")
+                return []
+        except Exception as e:
+            print(f"⚠️ [SessionDB] Error pruning sessions by hour: {e}")
+            return []
+            
+    # === MODIFIED: Update prune_inactive to use the new method ===
     def prune_inactive(self, session_hours):
         """Removes sessions that haven't been seen in session_hours."""
-        db = get_db() # === ADDED ===
-        cutoff = datetime.utcnow() - timedelta(hours=session_hours)
-        query = "DELETE FROM ActiveSessions WHERE last_seen < ?"
-        try:
-            success = db.execute_query(query, (cutoff,)) # === MODIFIED ===
-            if success:
-                print(f"ℹ️ [SessionDB] Pruned stale sessions older than {cutoff}.")
-        except Exception as e:
-            print(f"⚠️ [SessionDB] Error pruning sessions: {e}")
+        # This function is called randomly, so we don't need the return value
+        self.prune_by_hours(session_hours)
 
 # Singleton instance
 session_db = SessionStoreDB()
